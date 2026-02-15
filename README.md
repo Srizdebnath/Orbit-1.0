@@ -1,5 +1,4 @@
 
-```markdown
 # 🛰️ Orbit 
 
 **Orbit** is a high-performance Mini-PaaS (Platform as a Service) designed for developers who want to launch projects into the cloud with zero friction. Using a Neo-Brutalist design language and real-time streaming, Orbit bridges the gap between your local terminal and global infrastructure.
@@ -82,4 +81,3 @@ npm link
 - [ ] **Custom Caddy Integration:** Automatic SSL for self-hosted domains.
 
 Built by Sriz Debnath
-```
