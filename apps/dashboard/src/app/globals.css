@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+:root {
+  --grid-size: 40px;
+  --grid-color: rgba(0, 0, 0, 0.04);
+}
+
+body {
+  background-color: #fff;
+  background-image: 
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+  color: #000;
+}
+
+/* Custom selection color for that "cool" look */
+::selection {
+  background: #000;
+  color: #fff;
+}
