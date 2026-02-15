@@ -1,0 +1,17 @@
+# Dependencies
+node_modules
+.DS_Store
+
+# Next.js
+apps/dashboard/.next/
+apps/dashboard/out/
+
+# CLI Build
+packages/cli/dist/
+
+# Env secrets (VERY IMPORTANT)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
