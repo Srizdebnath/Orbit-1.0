@@ -1,12 +1,10 @@
 'use client'
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import ProjectCard from '@/components/ProjectCard';
 import { Github, Linkedin, Globe, Rocket, ShieldCheck, Zap } from 'lucide-react';
 import Link from 'next/link';
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 export default function Dashboard() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -39,7 +37,7 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen">
       <Navbar />
-      
+
       <div className="max-w-7xl mx-auto pt-40 px-8 pb-20">
         {!user ? (
           <div className="max-w-2xl mx-auto text-center p-12 border-4 border-black bg-white shadow-[16px_16px_0px_0px_rgba(0,0,0,1)]">
@@ -69,7 +67,7 @@ export default function Dashboard() {
         )}
       </div>
 
-     
+
       <footer className="bg-white border-t-4 border-black py-20 px-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-12">
           <div className="w-40 h-40 border-4 border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">

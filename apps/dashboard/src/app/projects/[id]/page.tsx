@@ -1,25 +1,20 @@
 'use client'
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { useParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import MetricChart from '@/components/MetricChart';
 import MetricDisplay from '@/components/MetricDisplay';
-import { 
-  Clock, 
-  ExternalLink, 
-  Settings, 
-  Terminal, 
-  History as HistoryIcon, 
-  Activity, 
-  Layers 
+import {
+  Clock,
+  ExternalLink,
+  Settings,
+  Terminal,
+  History as HistoryIcon,
+  Activity,
+  Layers
 } from 'lucide-react';
 import Link from 'next/link';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function ProjectOverview() {
   const { id } = useParams();
@@ -29,7 +24,7 @@ export default function ProjectOverview() {
 
   useEffect(() => {
     const fetchData = async () => {
-     
+
       const { data: p } = await supabase.from('projects').select('*').eq('id', id).single();
       setProject(p);
 
@@ -38,18 +33,18 @@ export default function ProjectOverview() {
         .select('*')
         .eq('project_id', id)
         .order('created_at', { ascending: false });
-      
+
       setDeployments(d || []);
       setLoading(false);
     };
 
     fetchData();
 
-   
+
     const channel = supabase
       .channel(`project-view-${id}`)
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'deployments', filter: `project_id=eq.${id}` }, 
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'deployments', filter: `project_id=eq.${id}` },
         () => fetchData()
       )
       .subscribe();
@@ -63,9 +58,9 @@ export default function ProjectOverview() {
   return (
     <main className="min-h-screen pt-32 px-8 pb-20">
       <Navbar />
-      
+
       <div className="max-w-7xl mx-auto">
-       
+
         <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b-4 border-black pb-8 gap-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -76,7 +71,7 @@ export default function ProjectOverview() {
               {project.name}<span className="text-blue-600">.</span>
             </h1>
           </div>
-          
+
           <div className="flex gap-3">
             <Link href={`/projects/${id}/settings`} className="flex items-center gap-2 px-6 py-3 border-2 border-black font-bold uppercase text-xs hover:bg-black hover:text-white transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white">
               <Settings size={16} /> Settings
@@ -90,15 +85,15 @@ export default function ProjectOverview() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-          
-          
+
+
           <div className="lg:col-span-1 space-y-8">
             <div className="border-4 border-black p-6 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <div className="flex items-center gap-2 mb-6 text-blue-600">
                 <Activity size={20} />
                 <h2 className="font-black uppercase italic text-lg tracking-tight">Live Telemetry</h2>
               </div>
-              
+
               <div className="space-y-6">
                 <div>
                   <div className="flex justify-between text-[10px] font-black uppercase mb-1">
@@ -109,7 +104,7 @@ export default function ProjectOverview() {
                     <MetricChart projectId={project.id} />
                   </div>
                 </div>
-                
+
                 <div className="pt-4 border-t-2 border-dashed border-black/10">
                   <div className="flex justify-between text-[10px] font-black uppercase">
                     <span>Active RAM</span>
@@ -120,7 +115,7 @@ export default function ProjectOverview() {
             </div>
           </div>
 
-         
+
           <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center gap-2 font-black uppercase tracking-widest text-sm mb-4">
               <HistoryIcon size={20} /> Deployment History
@@ -134,7 +129,7 @@ export default function ProjectOverview() {
                       <span className="text-[10px] font-black text-gray-300">#{deployments.length - i}</span>
                       <Layers size={20} className={i === 0 ? 'text-blue-600' : 'text-gray-300'} />
                     </div>
-                    
+
                     <div>
                       <p className="font-mono text-[10px] font-bold text-gray-400 uppercase tracking-tighter">ID: {d.id.slice(0, 8)}</p>
                       <div className="flex items-center gap-3 mt-1">
@@ -149,7 +144,7 @@ export default function ProjectOverview() {
                     </div>
                   </div>
 
-                  <Link 
+                  <Link
                     href={`/projects/${id}/logs?deployId=${d.id}`}
                     className="flex items-center gap-2 px-4 py-2 border-2 border-black font-black text-[10px] uppercase hover:bg-black hover:text-white transition-colors"
                   >

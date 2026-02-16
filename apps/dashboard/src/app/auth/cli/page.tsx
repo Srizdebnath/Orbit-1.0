@@ -1,12 +1,7 @@
 'use client'
 import { useEffect, useState, Suspense } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { useSearchParams, useRouter } from 'next/navigation';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 function AuthContent() {
   const searchParams = useSearchParams();
@@ -16,11 +11,11 @@ function AuthContent() {
 
   useEffect(() => {
     const approveCLI = async () => {
-   
+
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        
+
         await supabase.auth.signInWithOAuth({
           provider: 'github',
           options: { redirectTo: window.location.href }
@@ -33,7 +28,7 @@ function AuthContent() {
         return;
       }
 
-      
+
       const { error } = await supabase
         .from('cli_auth')
         .update({ is_approved: true, user_id: user.id })
@@ -43,7 +38,7 @@ function AuthContent() {
         setStatus(`❌ Approval Failed: ${error.message}`);
       } else {
         setStatus('🚀 Authorized! You can now return to your terminal.');
-       
+
         setTimeout(() => router.push('/'), 3000);
       }
     };

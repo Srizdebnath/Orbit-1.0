@@ -6,12 +6,13 @@
 
 <p align="center">
   <strong>One CLI. One Dashboard. Ship Anywhere.</strong><br/>
-  A high-performance, developer-first Platform-as-a-Service that simplifies the bridge between local development and global deployment.
+  Deploy to Vercel, Netlify, your own VPS, or host from your laptop — with live telemetry streaming to a real-time dashboard.
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@srizdebnath/orbit"><img src="https://img.shields.io/npm/v/@srizdebnath/orbit?style=flat-square&logo=npm&color=blue" alt="npm version" /></a>
   <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5-blue?style=flat-square&logo=typescript" alt="TypeScript" />
   <img src="https://img.shields.io/badge/License-ISC-green?style=flat-square" alt="License" />
 </p>
@@ -22,35 +23,47 @@
 
 | Feature | Description |
 |---|---|
-| **Multi-Platform Deploy** | Ship to **Vercel**, **Netlify**, **Self-Host (VPS)**, or **Laptop Hosting** via Cloudflare Tunnel — all from a single `orbit deploy` command. |
-| **Live Telemetry** | Real-time **CPU & RAM** metrics streamed from your machine to the dashboard via Supabase Realtime WebSockets. |
-| **Terminal Streaming** | Build logs piped live into a fully-featured **xterm.js** terminal viewer in the dashboard. |
-| **CLI Authentication** | Secure 6-digit handshake flow: generate a code in the terminal, approve it in the browser via GitHub OAuth. |
-| **Neo-Brutalist UI** | A bold, high-contrast dashboard with grid backgrounds, hard shadows, and monospace typography. |
-| **Team Collaboration** | Invite team members to your projects via email and manage access from the Settings page. |
-| **Deployment History** | Browse all past deployments per project with full log replay. |
+| **Multi-Platform Deploy** | Ship to **Vercel**, **Netlify**, **Self-Host (VPS via Docker + Caddy)**, or **Laptop Hosting** via Cloudflare Tunnel. |
+| **Auto Platform Login** | If you're not logged in to Vercel/Netlify, the CLI launches the login flow inline — no separate step needed. |
+| **Live Telemetry** | Real-time **CPU & RAM** metrics streamed every 3 seconds to the dashboard via Supabase Realtime. |
+| **Detailed Build Logs** | Full stdout + stderr from build and deploy piped live into the dashboard's xterm.js terminal — including failures. |
+| **CLI Auth Handshake** | Secure 6-digit code flow: generate in terminal → approve in browser via GitHub OAuth. 2-minute timeout. |
+| **VPS Deployment Engine** | Uploads project via tar/SCP, builds Docker image on the VPS, starts the container, configures Caddy reverse proxy. |
+| **Neo-Brutalist UI** | Bold, high-contrast dashboard with grid backgrounds, hard shadows, and monospace typography. |
+| **Team Collaboration** | Invite team members by email, remove members, and manage access from the Settings page. |
+| **Deployment History** | Browse all past deployments per project with full log replay — including failed deploys. |
 
 ---
 
-## 🏗️ Project Architecture
-
-Orbit is structured as a **monorepo** with two core packages:
+## 🏗️ Architecture
 
 ```
 orbit/
 ├── apps/
-│   └── dashboard/          # Next.js 16 Web Dashboard (The Control Plane)
-│       ├── src/app/         # App Router pages (home, projects, auth, setup, settings, logs)
-│       └── src/components/  # Reusable UI (Navbar, ProjectCard, MetricChart, MetricDisplay, TerminalView)
+│   └── dashboard/              # Next.js 16 Web Dashboard (The Control Plane)
+│       ├── src/app/            # App Router pages
+│       │   ├── page.tsx        #   Home — project fleet + GitHub login + footer
+│       │   ├── setup/          #   Onboarding — CLI install steps
+│       │   ├── auth/cli/       #   CLI handshake approval
+│       │   └── projects/[id]/  #   Project overview, logs, settings
+│       ├── src/components/     # Reusable UI
+│       │   ├── Navbar.tsx      #   Top nav — auth state, logout
+│       │   ├── ProjectCard.tsx #   Project card — status, metrics, links
+│       │   ├── MetricChart.tsx #   Recharts live CPU area chart
+│       │   ├── MetricDisplay.tsx#  Single live metric (CPU% / RAM MB)
+│       │   └── TerminalView.tsx#   xterm.js log renderer
+│       └── src/lib/
+│           └── supabase.ts     # Shared Supabase singleton + TypeScript interfaces
 │
 ├── packages/
-│   └── cli/                # TypeScript CLI (The Launchpad)
+│   └── cli/                    # TypeScript CLI — @srizdebnath/orbit on npm
 │       └── src/
-│           ├── index.ts    # Main CLI entry — login, deploy, tunnel orchestration
-│           └── engine.ts   # VPS deployment engine (SSH + Docker + Caddy)
+│           ├── index.ts        # Main entry — login, logout, deploy (all 4 platforms)
+│           ├── config.ts       # Supabase URL, anon key, dashboard URL
+│           └── engine.ts       # VPS engine — SSH → tar upload → Docker build → Caddy
 │
 ├── .gitignore
-└── README.md               # ← You are here
+└── README.md                   # ← You are here
 ```
 
 ---
@@ -60,9 +73,9 @@ orbit/
 | Layer | Technologies |
 |---|---|
 | **Frontend** | Next.js 16 (App Router), React 19, Tailwind CSS 4, Lucide Icons, Recharts, xterm.js |
-| **Backend / DB** | Supabase (Auth, PostgreSQL, Real-time WebSockets) |
-| **CLI** | Node.js, Commander, Inquirer, Execa, systeminformation, node-ssh, Cloudflared |
-| **Hosting Targets** | Vercel, Netlify, Self-Host (VPS via Docker + Caddy), Laptop Hosting (Cloudflare Tunnel) |
+| **Backend / DB** | Supabase (Auth, PostgreSQL, Real-time WebSockets, Row-Level Security) |
+| **CLI** | Node.js ESM, Commander, Inquirer, Execa, systeminformation, node-ssh, Cloudflared |
+| **Deploy Targets** | Vercel, Netlify, Docker + Caddy (VPS), Cloudflare Tunnel (Laptop) |
 
 ---
 
@@ -70,65 +83,78 @@ orbit/
 
 ### Prerequisites
 
-- **Node.js** ≥ 18
-- **npm** ≥ 9
+- **Node.js** ≥ 18, **npm** ≥ 9
 - A free [Supabase](https://supabase.com) account
 - *(Optional)* [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) for Laptop Hosting
-- *(Optional)* Vercel CLI / Netlify CLI for platform deployments
+- *(Optional)* Vercel CLI / Netlify CLI (the CLI auto-prompts login if needed)
 
 ### 1. Clone & Install
 
 ```bash
 git clone https://github.com/Srizdebnath/Orbit-1.0.git
 cd orbit
-```
 
-Install dependencies for both the dashboard and CLI:
-
-```bash
 # Dashboard
-cd apps/dashboard
-npm install
+cd apps/dashboard && npm install
 
 # CLI
-cd ../../packages/cli
-npm install
+cd ../../packages/cli && npm install
 ```
 
 ### 2. Setup Supabase
 
-Follow the detailed instructions in [`apps/dashboard/README.md`](apps/dashboard/README.md) to:
-1. Create the required database tables (`projects`, `deployments`, `metrics`, `cli_auth`, `project_members`).
-2. Enable Supabase Realtime on all tables.
-3. Enable GitHub OAuth provider.
-4. Configure your `.env.local` with your Supabase credentials.
+See [`apps/dashboard/README.md`](apps/dashboard/README.md) for full SQL setup, Realtime config, and GitHub OAuth setup.
 
-### 3. Run the Dashboard Locally
+### 3. Run the Dashboard
 
 ```bash
 cd apps/dashboard
-npm run dev
+cp .env.example .env.local   # Add your Supabase credentials
+npm run dev                  # → http://localhost:3000
 ```
-
-The dashboard will be available at `http://localhost:3000`.
 
 ### 4. Build & Link the CLI
 
 ```bash
 cd packages/cli
-npm run build
-npm link
+npm run build && npm link
 ```
 
-Now you can use `orbit login` and `orbit deploy` globally from any terminal.
-
-### 5. Deploy Your First Project
+### 5. Deploy
 
 ```bash
-cd your-project-folder
+cd your-project
 orbit login        # Authenticate via GitHub
-orbit deploy       # Choose a platform and launch 🚀
+orbit deploy       # Choose platform → build → deploy → done 🚀
 ```
+
+---
+
+## 📦 Install from npm
+
+```bash
+npm install -g @srizdebnath/orbit
+```
+
+---
+
+## 🔧 CLI Commands
+
+| Command | Description |
+|---|---|
+| `orbit login` | Authenticate via 6-digit code + GitHub OAuth (2-min timeout) |
+| `orbit logout` | Remove local session (`~/.orbit_session.json`) |
+| `orbit deploy` | Interactive deploy — pick platform, build, push, stream logs |
+| `orbit --version` | Print current version |
+
+### Deploy Platforms
+
+| Platform | What Happens |
+|---|---|
+| **▲ Vercel** | Checks auth → auto-login if needed → `npm run build` → `npx vercel --yes --prod` |
+| **◆ Netlify** | Checks auth → auto-login if needed → `npm run build` → auto-detects output dir → `npx netlify deploy --prod` |
+| **⚡ Tunnel** | Checks `cloudflared` → checks port reachable → bridges `localhost:PORT` → public URL |
+| **🖥 VPS** | Collects SSH config → tests connection → `npm run build` → tar upload → Docker build → Caddy config |
 
 ---
 
@@ -141,46 +167,47 @@ orbit deploy       # Choose a platform and launch 🚀
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anonymous (public) key |
 
-### CLI (`packages/cli/.env`)
+### CLI (`packages/cli/src/config.ts`)
 
-The CLI has the Supabase credentials hardcoded for the published npm package. If you're self-hosting, update the constants in `src/index.ts`:
-- `ORBIT_URL` — URL of your deployed dashboard
-- `SUPABASE_URL` — Your Supabase project URL
-- `SUPABASE_ANON_KEY` — Your Supabase anonymous key
+The CLI bundles the production Supabase anon key. If self-hosting, update `config.ts`:
+
+| Constant | Description |
+|---|---|
+| `ORBIT_URL` | URL of your Orbit Dashboard |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_ANON_KEY` | Your Supabase anonymous key |
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] `orbit status` — Check live deployment status from the terminal
+- [ ] `orbit status` — Check deployment status from terminal
 - [ ] `orbit rollback` — Revert to a previous deployment
 - [ ] Custom domain support per project
-- [ ] Per-project environment variables management
-- [ ] Dark mode for the dashboard
-- [ ] Docker Compose for full local self-host
+- [ ] Environment variables management in dashboard
+- [ ] Dark mode
+- [ ] Docker Compose for local self-hosting
 - [ ] GitHub Actions CI/CD integration
-- [ ] Notifications (Slack / Discord webhooks)
+- [ ] Webhook notifications (Slack / Discord)
 
 ---
 
 ## 🤝 Contributing
 
 1. Fork the repo
-2. Create your feature branch (`git checkout -b feat/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feat/amazing-feature`)
+2. Create your branch (`git checkout -b feat/my-feature`)
+3. Commit (`git commit -m 'feat: add my feature'`)
+4. Push (`git push origin feat/my-feature`)
 5. Open a Pull Request
 
 ---
 
 ## 📜 License
 
-This project is licensed under the **ISC License**.
+ISC
 
 ---
 
-## 👨‍💻 Developed By
+## 👨‍💻 Author
 
-**Srizdebnath**
-
-[GitHub](https://github.com/Srizdebnath) · [LinkedIn](https://linkedin.com/in/srizdebnath) · [Portfolio](https://sriz.vercel.app)
+**Srizdebnath** — [GitHub](https://github.com/Srizdebnath) · [LinkedIn](https://linkedin.com/in/srizdebnath) · [Portfolio](https://sriz.vercel.app)

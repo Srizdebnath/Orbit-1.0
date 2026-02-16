@@ -1,18 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { AreaChart, Area, ResponsiveContainer, YAxis, CartesianGrid } from 'recharts';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function MetricChart({ projectId }: { projectId: string }) {
   const [data, setData] = useState<any[]>([]);
 
   useEffect(() => {
-   
+
     const fetchHistory = async () => {
       const { data: history } = await supabase
         .from('metrics')
@@ -20,18 +15,18 @@ export default function MetricChart({ projectId }: { projectId: string }) {
         .eq('project_id', projectId)
         .order('timestamp', { ascending: false })
         .limit(20);
-      
+
       if (history) {
         setData(history.reverse().map(m => ({ cpu: m.cpu_usage })));
       }
     };
     fetchHistory();
 
-    
+
     const channel = supabase
       .channel(`live-metrics-${projectId}`)
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'metrics', filter: `project_id=eq.${projectId}` }, 
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'metrics', filter: `project_id=eq.${projectId}` },
         (payload) => {
           setData(prev => [...prev.slice(-19), { cpu: payload.new.cpu_usage }]);
         }
@@ -47,17 +42,17 @@ export default function MetricChart({ projectId }: { projectId: string }) {
         <AreaChart data={data}>
           <defs>
             <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+              <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-          <Area 
-            type="stepAfter" 
-            dataKey="cpu" 
-            stroke="#2563eb" 
-            fillOpacity={1} 
-            fill="url(#colorCpu)" 
+          <Area
+            type="stepAfter"
+            dataKey="cpu"
+            stroke="#2563eb"
+            fillOpacity={1}
+            fill="url(#colorCpu)"
             strokeWidth={3}
             isAnimationActive={false}
           />
