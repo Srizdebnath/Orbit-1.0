@@ -1,41 +1,185 @@
-# 🛰️ Orbit CLI (v1.1.0)
+# 🛰️ Orbit CLI — The Launchpad
 
-The Orbit Command Line Interface is your gateway to the Orbit ecosystem. It handles local build execution, hardware telemetry streaming, and deployment handshakes.
+> The Orbit Command Line Interface is your gateway to the Orbit ecosystem. It handles authentication, local build execution, hardware telemetry streaming, multi-platform deployment, and tunnel hosting — all from your terminal.
+
+[![npm](https://img.shields.io/npm/v/@srizdebnath/orbit?style=flat-square&logo=npm&color=blue)](https://www.npmjs.com/package/@srizdebnath/orbit)
+
+---
 
 ## 📦 Installation
 
-Install globally via NPM:
+Install globally via npm:
 
 ```bash
 npm install -g @srizdebnath/orbit
 ```
 
+**Requirements:**
+- Node.js ≥ 18
+- npm ≥ 9
+- *(For Laptop Hosting)* [Cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) installed and in your PATH
+- *(For Vercel/Netlify)* Respective CLIs installed and authenticated (`npx vercel login` / `npx netlify login`)
+
+---
+
 ## 🛠️ Commands
 
-### 1. `orbit login`
-Initializes a secure handshake between your local machine and the Orbit Dashboard.
-- Generates a unique 6-digit session code.
-- Opens your browser for GitHub authentication.
-- Stores a secure session token in `~/.orbit_session.json`.
+### `orbit login`
 
-### 2. `orbit deploy`
-The core command to launch your project.
-- **Platforms:** Vercel, Netlify, Laptop Hosting (Tunnel), VPS.
-- **Process:** Executes `npm run build`, captures logs, and streams them to the dashboard.
-- **Telemetry:** Streams CPU and RAM usage live during the process.
+Securely links your terminal to your Orbit Dashboard account using a handshake flow.
 
-### 3. `orbit tunnel`
-Exposes your local development port to the public internet using Cloudflare Tunnels.
-- **Usage:** `orbit deploy` -> Select `Laptop Hosting`.
-- **Port:** Defaults to `3000`.
+**How it works:**
+1. Generates a unique 6-digit alphanumeric session code.
+2. Inserts the code into the `cli_auth` Supabase table.
+3. Opens your browser to the dashboard's `/auth/cli?code=XXXXXX` page.
+4. You authenticate with GitHub in the browser, which approves the code.
+5. The CLI polls the database every 2 seconds until approved.
+6. On success, a session token is saved to `~/.orbit_session.json`.
 
-## ⚙️ How it Works
+```bash
+$ orbit login
 
-1. **Detection:** Orbit looks for a `package.json` in your current directory.
-2. **Handshake:** It identifies the user via the saved session token.
-3. **Telemetry:** Uses `systeminformation` to sample CPU load every 3 seconds.
-4. **Streaming:** Pipes `stdout` from build processes directly to the Supabase `deployments` table via an active database connection.
+🔑 Login Code: A3BX9K
+# Browser opens → Authenticate with GitHub → Done!
+✅ Authenticated!
+```
 
-## ⚠️ Requirements
-- **Cloudflare Tunnels:** To use Laptop Hosting, ensure `cloudflared` is installed on your system.
-- **Vercel/Netlify:** Ensure you have logged into their respective CLIs on your machine.
+---
+
+### `orbit deploy`
+
+The core command to build, deploy, and stream telemetry for your project.
+
+**Supported platforms:**
+
+| Platform | What Happens |
+|---|---|
+| **Vercel** | Runs `npm run build` locally, then pushes to Vercel production via `npx vercel --confirm --prod`. |
+| **Netlify** | Runs `npm run build` locally, then deploys via `npx netlify deploy --prod --dir=.next`. |
+| **Laptop Hosting (Tunnel)** | Skips local build. Exposes your running dev server to the internet via a Cloudflare Tunnel. |
+| **Self-Host (VPS)** | Connects to your VPS via SSH, uploads a Dockerfile, builds a container, and configures Caddy as a reverse proxy. |
+
+**During deployment:**
+- **Build logs** are streamed in real-time to the Supabase `deployments` table, viewable in the dashboard's Terminal View.
+- **CPU & RAM metrics** are sampled every 3 seconds via `systeminformation` and streamed to the `metrics` table.
+
+```bash
+$ orbit deploy
+
+? Select Target Platform: Vercel
+? Project Name: my-app
+
+🛠️  Running build sequence...
+🚀 Pushing to Vercel...
+✅ Orbit Mission Complete!
+```
+
+---
+
+### `orbit deploy` → Laptop Hosting (Tunnel Mode)
+
+This sub-flow lets you host your app directly from your machine by exposing a local port via Cloudflare Tunnel.
+
+```bash
+$ orbit deploy
+
+? Select Target Platform: Laptop Hosting (Tunnel)
+? Project Name: my-app
+? Which port is your app running on? 3000
+
+ ORBIT TUNNEL  Bridging port 3000...
+
+⚠️  IMPORTANT: Make sure your project is running on localhost:3000
+(Run 'npm run dev' or 'npm start' in another terminal if you haven't yet)
+
+🌎 YOUR PROJECT IS LIVE AT: https://abc123.trycloudflare.com
+```
+
+> **Note:** Tunnel mode keeps the process alive indefinitely. Press `Ctrl+C` to stop.
+
+---
+
+## ⚙️ Architecture
+
+```
+packages/cli/
+├── src/
+│   ├── index.ts        # Main entry point — Commander program, login & deploy logic
+│   └── engine.ts       # VPS deployment engine (SSH → Docker → Caddy)
+├── dist/               # Compiled JS output (generated by `npm run build`)
+├── package.json
+├── tsconfig.json
+└── .env                # (gitignored) Local overrides for dev
+```
+
+### How It Works (Step-by-Step)
+
+1. **Detection** — Orbit checks your current directory for a `package.json` to identify the project.
+2. **Authentication** — Reads the session token from `~/.orbit_session.json` (created by `orbit login`).
+3. **Project Sync** — Upserts a record in the `projects` table keyed by `(name, user_id)`.
+4. **Deployment Record** — Creates a new entry in the `deployments` table with status `building`.
+5. **Telemetry** — Starts a 3-second interval sampling CPU load and active RAM via `systeminformation`, inserting into the `metrics` table.
+6. **Build** — Runs `npm run build` locally (skipped for tunnel mode), streaming `stdout` to the `deployments.logs` column.
+7. **Platform Push** — Executes the platform-specific deployment command (Vercel CLI, Netlify CLI, Cloudflare Tunnel, or SSH).
+8. **Finalize** — Updates the project status to `success` and saves the live URL to `projects.domain`.
+
+### VPS Engine (`engine.ts`)
+
+For self-hosted deployments, the engine:
+1. Connects via SSH using a private key.
+2. Creates a project directory at `~/orbit/<project-name>/`.
+3. Writes a `Dockerfile` (Node.js 18 slim, `npm install` + `npm run build`, exposes port 3000).
+4. Appends a `Caddyfile` entry for automatic HTTPS reverse proxy.
+5. Reloads the Caddy service.
+
+---
+
+## 🔧 Development
+
+### Build from Source
+
+```bash
+cd packages/cli
+npm install
+npm run build       # Compiles TypeScript → dist/
+npm link            # Makes `orbit` available globally
+```
+
+### Watch Mode
+
+```bash
+npm run dev         # Runs tsc in watch mode
+```
+
+### Configuration Constants
+
+The following constants are defined at the top of `src/index.ts` and should be updated if you're self-hosting:
+
+| Constant | Default | Description |
+|---|---|---|
+| `ORBIT_URL` | `https://orbit-gamma-seven.vercel.app/` | URL of the Orbit Dashboard |
+| `SUPABASE_URL` | *(hardcoded)* | Supabase project URL |
+| `SUPABASE_ANON_KEY` | *(hardcoded)* | Supabase anonymous key |
+| `CONFIG_PATH` | `~/.orbit_session.json` | Path to the local session file |
+
+---
+
+## ⚠️ Known Limitations
+
+- **VPS deployment** does not currently upload your project files — only generates a Dockerfile scaffold. File transfer (e.g., via `tar` + `scp`) is not yet wired up.
+- **Netlify deploy** defaults to `--dir=.next` which only works for Next.js projects. Other frameworks need different output directories.
+- **Tunnel mode** never exits on its own — requires manual `Ctrl+C`.
+- **No `orbit logout`** command exists yet.
+- **No `orbit status`** command to check deployment state from the CLI.
+
+---
+
+## 📜 License
+
+ISC
+
+---
+
+## 👨‍💻 Author
+
+**Srizdebnath** — [GitHub](https://github.com/Srizdebnath) · [LinkedIn](https://linkedin.com/in/srizdebnath) · [Portfolio](https://sriz.vercel.app)
