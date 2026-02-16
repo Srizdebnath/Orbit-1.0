@@ -1,7 +1,17 @@
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-export const ORBIT_URL = "https://orbit-gamma-seven.vercel.app";
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-export const SUPABASE_URL = "REDACTED_URL";
+export const ORBIT_URL = process.env.ORBIT_URL || "";
+export const SUPABASE_URL = process.env.SUPABASE_URL || "";
+export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
 
-export const SUPABASE_ANON_KEY = "REDACTED_KEY";
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error("❌ Missing SUPABASE_URL or SUPABASE_ANON_KEY in packages/cli/.env");
+    process.exit(1);
+}
