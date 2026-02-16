@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="apps/dashboard/public/orbit.png" width="80" />
+  <img src="apps/dashboard/public/orbit.png" />
 </p>
 
-<h1 align="center">🛰️ Orbit — The Neo-Brutalist Mini-PaaS</h1>
+<h1 align="center">🛰️ Orbit - The Neo-Brutalist Mini-PaaS</h1>
 
 <p align="center">
   <strong>One CLI. One Dashboard. Ship Anywhere.</strong><br/>
-  Deploy to Vercel, Netlify, your own VPS, or host from your laptop — with live telemetry streaming to a real-time dashboard.
+  Deploy to Vercel, Netlify, your own VPS, or host from your laptop - with live telemetry streaming to a real-time dashboard.
 </p>
 
 <p align="center">
