@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="apps/dashboard/public/favicon.ico" width="80" />
+  <img src="apps/dashboard/public/orbit.png" width="80" />
 </p>
 
 <h1 align="center">🛰️ Orbit — The Neo-Brutalist Mini-PaaS</h1>
@@ -202,11 +202,6 @@ The CLI bundles the production Supabase anon key. If self-hosting, update `confi
 
 ---
 
-## 📜 License
-
-ISC
-
----
 
 ## 👨‍💻 Author
 
