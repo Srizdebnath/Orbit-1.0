@@ -1,92 +1,167 @@
 'use client'
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import Navbar from '@/components/Navbar';
+import MetricChart from '@/components/MetricChart';
+import MetricDisplay from '@/components/MetricDisplay';
+import { 
+  Clock, 
+  ExternalLink, 
+  Settings, 
+  Terminal, 
+  History as HistoryIcon, 
+  Activity, 
+  Layers 
+} from 'lucide-react';
+import Link from 'next/link';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-export default function LogsPage() {
-  const params = useParams();
-  const [logs, setLogs] = useState("Waiting for logs...");
-  const [status, setStatus] = useState("loading");
+export default function ProjectOverview() {
+  const { id } = useParams();
+  const [project, setProject] = useState<any>(null);
+  const [deployments, setDeployments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!params.id) return;
+    const fetchData = async () => {
+     
+      const { data: p } = await supabase.from('projects').select('*').eq('id', id).single();
+      setProject(p);
 
-    const fetchLogs = async () => {
-      const { data } = await supabase
+      const { data: d } = await supabase
         .from('deployments')
-        .select('logs, status')
-        .eq('project_id', params.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .select('*')
+        .eq('project_id', id)
+        .order('created_at', { ascending: false });
       
-      if (data) {
-        setLogs(data.logs);
-        setStatus(data.status);
-      }
+      setDeployments(d || []);
+      setLoading(false);
     };
 
-    fetchLogs();
+    fetchData();
 
+   
     const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'deployments', 
-          filter: `project_id=eq.${params.id}` 
-        },
-        (payload) => {
-          setLogs(payload.new.logs);
-          setStatus(payload.new.status);
-        }
+      .channel(`project-view-${id}`)
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'deployments', filter: `project_id=eq.${id}` }, 
+        () => fetchData()
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [params.id]);
+    return () => { supabase.removeChannel(channel) };
+  }, [id]);
+
+  if (loading) return <div className="p-20 font-mono italic animate-pulse">SYNCING_ORBIT_DATA...</div>;
+  if (!project) return <div className="p-20 font-bold text-red-500">PROJECT_NOT_FOUND</div>;
 
   return (
-    <div className="min-h-screen p-8 max-w-5xl mx-auto">
-      <div className="flex justify-between items-end mb-8">
-        <div>
-          <p className="text-xs font-mono uppercase tracking-widest text-gray-400">Project ID: {params.id}</p>
-          <h1 className="text-5xl font-black italic tracking-tighter uppercase mt-2">Deployment Logs</h1>
-        </div>
-        <div className={`px-4 py-1 rounded-full text-xs font-bold uppercase border-2 ${
-          status === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-yellow-100 border-yellow-500 text-yellow-700'
-        }`}>
-          {status}
-        </div>
-      </div>
-
-      <div className="relative group">
+    <main className="min-h-screen pt-32 px-8 pb-20">
+      <Navbar />
+      
+      <div className="max-w-7xl mx-auto">
        
-        <div className="absolute inset-0 bg-black translate-x-2 translate-y-2 group-hover:translate-x-3 group-hover:translate-y-3 transition-transform"></div>
-        
-        <div className="relative bg-[#0a0a0a] border-2 border-black p-6 font-mono text-sm leading-relaxed overflow-y-auto max-h-[600px] text-gray-300">
-          <div className="flex gap-2 mb-4 border-b border-white/10 pb-2">
-            <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
-            <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+        <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b-4 border-black pb-8 gap-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600">Active Node</span>
+              <span className="bg-black text-white text-[10px] px-2 py-0.5 font-bold uppercase">{project.platform}</span>
+            </div>
+            <h1 className="text-7xl font-black italic tracking-tighter uppercase leading-none">
+              {project.name}<span className="text-blue-600">.</span>
+            </h1>
           </div>
           
-          {logs.split('\n').map((line, i) => (
-            <div key={i} className="flex gap-4 hover:bg-white/5 transition-colors">
-              <span className="opacity-20 w-8 shrink-0 text-right select-none">{i + 1}</span>
-              <span className={line.includes('✅') ? 'text-green-400' : ''}>{line}</span>
+          <div className="flex gap-3">
+            <Link href={`/projects/${id}/settings`} className="flex items-center gap-2 px-6 py-3 border-2 border-black font-bold uppercase text-xs hover:bg-black hover:text-white transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white">
+              <Settings size={16} /> Settings
+            </Link>
+            {project.domain && (
+              <a href={project.domain} target="_blank" className="flex items-center gap-2 px-6 py-3 border-2 border-black font-bold uppercase text-xs hover:bg-blue-600 hover:text-white transition-all shadow-[4px_4px_0px_0px_rgba(37,99,235,1)] bg-white">
+                <ExternalLink size={16} /> Visit Site
+              </a>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          
+          
+          <div className="lg:col-span-1 space-y-8">
+            <div className="border-4 border-black p-6 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <div className="flex items-center gap-2 mb-6 text-blue-600">
+                <Activity size={20} />
+                <h2 className="font-black uppercase italic text-lg tracking-tight">Live Telemetry</h2>
+              </div>
+              
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between text-[10px] font-black uppercase mb-1">
+                    <span>CPU Load</span>
+                    <MetricDisplay projectId={project.id} type="cpu" />
+                  </div>
+                  <div className="h-20 grayscale border-2 border-black/5">
+                    <MetricChart projectId={project.id} />
+                  </div>
+                </div>
+                
+                <div className="pt-4 border-t-2 border-dashed border-black/10">
+                  <div className="flex justify-between text-[10px] font-black uppercase">
+                    <span>Active RAM</span>
+                    <MetricDisplay projectId={project.id} type="ram" />
+                  </div>
+                </div>
+              </div>
             </div>
-          ))}
+          </div>
+
+         
+          <div className="lg:col-span-2 space-y-6">
+            <div className="flex items-center gap-2 font-black uppercase tracking-widest text-sm mb-4">
+              <HistoryIcon size={20} /> Deployment History
+            </div>
+
+            <div className="space-y-4">
+              {deployments.map((d, i) => (
+                <div key={d.id} className="group flex items-center justify-between border-2 border-black p-5 bg-white hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all">
+                  <div className="flex items-center gap-6">
+                    <div className="flex flex-col items-center">
+                      <span className="text-[10px] font-black text-gray-300">#{deployments.length - i}</span>
+                      <Layers size={20} className={i === 0 ? 'text-blue-600' : 'text-gray-300'} />
+                    </div>
+                    
+                    <div>
+                      <p className="font-mono text-[10px] font-bold text-gray-400 uppercase tracking-tighter">ID: {d.id.slice(0, 8)}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className={`text-xs font-black uppercase italic ${d.status === 'success' ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {d.status}
+                        </span>
+                        <span className="text-gray-300">•</span>
+                        <span className="text-[10px] font-mono text-gray-500">
+                          {new Date(d.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Link 
+                    href={`/projects/${id}/logs?deployId=${d.id}`}
+                    className="flex items-center gap-2 px-4 py-2 border-2 border-black font-black text-[10px] uppercase hover:bg-black hover:text-white transition-colors"
+                  >
+                    <Terminal size={14} /> View Logs
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </div>
-    </div>
+    </main>
   );
 }

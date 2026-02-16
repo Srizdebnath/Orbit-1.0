@@ -10,7 +10,7 @@ export default function ProjectCard({ project }: { project: any }) {
   return (
     <div className="group relative bg-white border-[3px] border-black p-0 transition-all hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
       
-      {/* Top Status Bar - Strictly Black/White */}
+      
       <div className={`py-2 px-4 border-b-[3px] border-black flex justify-between items-center ${isDeploying ? 'bg-black text-white' : 'bg-white text-black'}`}>
         <div className="flex items-center gap-2">
           <Zap size={14} className={isDeploying ? 'animate-pulse' : ''} />
@@ -49,7 +49,7 @@ export default function ProjectCard({ project }: { project: any }) {
           </div>
         </div>
 
-        {/* Metrics Section */}
+        
         <div className="space-y-4">
           <div className="flex justify-between items-end border-b border-black/5 pb-2">
             <div className="flex items-center gap-2">

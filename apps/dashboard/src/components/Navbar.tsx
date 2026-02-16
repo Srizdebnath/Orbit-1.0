@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Initialize Supabase
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -15,14 +15,14 @@ export default function Navbar() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check current session
+    
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
     };
     getUser();
 
-    // Listen for auth changes
+  
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null);
     });
@@ -34,7 +34,7 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.refresh(); // Refresh the page to update the UI state
+    router.refresh(); 
   };
 
   return (
@@ -50,9 +50,7 @@ export default function Navbar() {
           
           {user ? (
             <div className="flex items-center gap-4 border-l border-black/10 pl-8">
-               <button className="bg-black text-white px-5 py-2 rounded-full text-xs font-bold hover:scale-105 transition-transform active:scale-95">
-                Deploy New +
-              </button>
+               
               <button 
                 onClick={handleLogout}
                 className="text-xs font-bold uppercase tracking-widest text-red-500 hover:underline"

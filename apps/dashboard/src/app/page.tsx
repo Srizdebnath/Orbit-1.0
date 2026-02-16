@@ -76,7 +76,7 @@ export default function Dashboard() {
             <img src="/pic.jpeg" alt="Dev" className="w-full h-full object-cover" />
           </div>
           <div className="flex-1 text-center md:text-left">
-            <p className="text-blue-600 font-black uppercase tracking-widest mb-2 text-xs italic">Architect & Engineer</p>
+            <p className="text-blue-600 font-black uppercase tracking-widest mb-2 text-xs italic">DevOps and AI Automation Engineer | BlockChain and Full Stack Developer</p>
             <h2 className="text-6xl font-black uppercase italic tracking-tighter mb-6">Srizdebnath</h2>
             <div className="flex flex-wrap gap-4 justify-center md:justify-start">
               <SocialLink href="https://github.com/Srizdebnath" icon={<Github />} label="GitHub" />

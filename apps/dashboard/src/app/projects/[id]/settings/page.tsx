@@ -55,7 +55,6 @@ export default function ProjectSettings() {
         <h1 className="text-6xl font-black italic uppercase tracking-tighter mb-12">Settings<span className="text-blue-600">.</span></h1>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          {/* General Settings */}
           <section className="space-y-8">
             <div className="p-8 border-4 border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <h2 className="text-xl font-black uppercase mb-6 italic underline">General</h2>
@@ -69,7 +68,6 @@ export default function ProjectSettings() {
               </div>
             </div>
 
-            {/* Danger Zone */}
             <div className="p-8 border-4 border-red-500 bg-red-50 shadow-[8px_8px_0px_0px_rgba(239,68,68,1)]">
               <div className="flex items-center gap-2 text-red-600 mb-4">
                 <AlertTriangle size={20} />
@@ -85,7 +83,6 @@ export default function ProjectSettings() {
             </div>
           </section>
 
-          {/* Team Sharing */}
           <section className="p-8 border-4 border-black bg-white shadow-[8px_8px_0px_0px_rgba(37,99,235,1)]">
             <h2 className="text-xl font-black uppercase mb-6 italic underline">Team Access</h2>
             

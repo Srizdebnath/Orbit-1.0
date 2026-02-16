@@ -11,7 +11,7 @@ export default function MetricDisplay({ projectId, type }: { projectId: string, 
   const [value, setValue] = useState<number>(0);
 
   useEffect(() => {
-    // Fetch latest initial value
+
     const fetchLatest = async () => {
         const { data } = await supabase
             .from('metrics')
@@ -27,7 +27,7 @@ export default function MetricDisplay({ projectId, type }: { projectId: string, 
     }
     fetchLatest();
 
-    // Subscribe to real-time changes
+    
     const channel = supabase
       .channel(`metrics-realtime-${projectId}-${type}`)
       .on('postgres_changes',
