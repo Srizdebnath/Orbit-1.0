@@ -16,11 +16,11 @@ function AuthContent() {
 
   useEffect(() => {
     const approveCLI = async () => {
-      // 1. Check if user is logged in
+   
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        // If not logged in, send to GitHub login, then return here
+        
         await supabase.auth.signInWithOAuth({
           provider: 'github',
           options: { redirectTo: window.location.href }
@@ -33,7 +33,7 @@ function AuthContent() {
         return;
       }
 
-      // 2. Approve the CLI code in your DB
+      
       const { error } = await supabase
         .from('cli_auth')
         .update({ is_approved: true, user_id: user.id })
@@ -43,7 +43,7 @@ function AuthContent() {
         setStatus(`❌ Approval Failed: ${error.message}`);
       } else {
         setStatus('🚀 Authorized! You can now return to your terminal.');
-        // Optional: Redirect to dashboard after 3 seconds
+       
         setTimeout(() => router.push('/'), 3000);
       }
     };
@@ -73,7 +73,6 @@ function AuthContent() {
   );
 }
 
-// Wrap in Suspense for Next.js App Router searchParams
 export default function CLIAuthPage() {
   return (
     <Suspense fallback={<div>Loading...</div>}>

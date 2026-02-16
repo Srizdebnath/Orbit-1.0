@@ -69,7 +69,7 @@ export default function LogsPage() {
       </div>
 
       <div className="relative group">
-        {/* Decorative shadow for the terminal */}
+       
         <div className="absolute inset-0 bg-black translate-x-2 translate-y-2 group-hover:translate-x-3 group-hover:translate-y-3 transition-transform"></div>
         
         <div className="relative bg-[#0a0a0a] border-2 border-black p-6 font-mono text-sm leading-relaxed overflow-y-auto max-h-[600px] text-gray-300">

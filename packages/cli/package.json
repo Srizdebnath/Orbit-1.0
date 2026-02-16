@@ -1,14 +1,18 @@
 {
-  "name": "cli",
+  "name": "@srizdebnath/orbit",
   "version": "1.0.0",
   "description": "",
   "type": "module",
   "bin": {
-    "orbit": "./dist/index.js"
+    "orbit": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/index.js",
     "dev": "tsc -w",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

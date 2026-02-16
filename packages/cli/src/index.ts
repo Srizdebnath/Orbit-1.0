@@ -9,80 +9,55 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import open from 'open';
+import { spawn } from 'child_process';
 
-// --- CONFIGURATION ---
-const ORBIT_URL = "http://localhost:3000"; // Your Next.js App URL
+const ORBIT_URL = "http://localhost:3000"; 
+const CONFIG_PATH = path.join(os.homedir(), '.orbit_session.json');
 const SUPABASE_URL = "REDACTED_SUPABASE_URL";
 const SUPABASE_ANON_KEY = "REDACTED_SUPABASE_ANON_KEY";
 
-const CONFIG_PATH = path.join(os.homedir(), '.orbit_session.json');
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
 function getSession() {
   if (fs.existsSync(CONFIG_PATH)) return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
   return null;
 }
 
 const program = new Command();
-program.name('orbit').version('1.0.0');
+program.name('orbit').version('1.0.1');
 
-// --- LOGIN COMMAND ---
 program
   .command('login')
   .description('Connect your terminal to Orbit')
   .action(async () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    
     console.log(chalk.bold(`\n🔑 Login Code: `) + chalk.cyan.bold(code));
-    
-    // 1. Insert handshake request
     await supabase.from('cli_auth').insert({ code });
-
     const authUrl = `${ORBIT_URL}/auth/cli?code=${code}`;
-    console.log(chalk.yellow(`\nOpening your browser to authenticate...`));
-    console.log(chalk.gray(`If it doesn't open, visit: ${authUrl}`));
-    
+    console.log(chalk.yellow(`\nOpening browser to authenticate...`));
     await open(authUrl);
 
-    // 2. Poll for approval
-    const spinner = ['|', '/', '-', '\\'];
-    let i = 0;
-    process.stdout.write(chalk.cyan('Waiting for approval... '));
-
     const poll = setInterval(async () => {
-      const { data } = await supabase
-        .from('cli_auth')
-        .select('is_approved, user_id')
-        .eq('code', code)
-        .single();
-
+      const { data } = await supabase.from('cli_auth').select('is_approved, user_id').eq('code', code).single();
       if (data?.is_approved) {
         clearInterval(poll);
         fs.writeFileSync(CONFIG_PATH, JSON.stringify({ user_id: data.user_id }));
-        console.log(chalk.green('\n\n✅ Successfully authenticated!'));
+        console.log(chalk.green('\n✅ Authenticated!'));
         process.exit(0);
       }
-      process.stdout.write(`\r${spinner[i++ % 4]} Waiting for approval... `);
     }, 2000);
   });
 
-// --- DEPLOY COMMAND ---
 program
   .command('deploy')
   .action(async () => {
     const session = getSession();
-    if (!session) {
-      console.log(chalk.red('❌ Not logged in. Run "orbit login" first.'));
-      return;
-    }
-
-    console.log(chalk.bold.bgWhite.black(' ORBIT ') + chalk.bold(' Launching Project...\n'));
+    if (!session) return console.log(chalk.red('❌ Run "orbit login" first.'));
 
     const answers = await inquirer.prompt([
       {
         type: 'list',
         name: 'platform',
-        message: 'Where do you want to deploy?',
+        message: 'Select Target:',
         choices: ['Vercel', 'Netlify', 'Self-Host (VPS)']
       },
       {
@@ -93,23 +68,33 @@ program
       }
     ]);
 
-    // 1. Create project linked to user
-    const { data: project } = await supabase
+    
+    const { data: project, error: pError } = await supabase
       .from('projects')
       .upsert({ 
         name: answers.projectName, 
         platform: answers.platform.toLowerCase(), 
-        user_id: session.user_id 
-      })
+        user_id: session.user_id,
+        status: 'deploying'
+      }, { onConflict: 'name,user_id' })
       .select().single();
 
-    // 2. Create Deployment
-    const { data: deployRecord } = await supabase
+    if (pError || !project) {
+        console.error(chalk.red('\n❌ Database Error:'), pError?.message || "Project record could not be created.");
+        return;
+    }
+
+    
+    const { data: deployRecord, error: dError } = await supabase
       .from('deployments')
-      .insert({ project_id: project.id, status: 'building', logs: 'Build started...' })
+      .insert({ project_id: project.id, status: 'building', logs: 'Build started...\n' })
       .select().single();
 
-    // 3. Metrics Streaming
+    if (dError || !deployRecord) {
+        console.error(chalk.red('\n❌ Deployment Record Error:'), dError?.message);
+        return;
+    }
+
     const metricInterval = setInterval(async () => {
       const cpu = await si.currentLoad();
       const mem = await si.mem();
@@ -121,29 +106,60 @@ program
     }, 3000);
 
     try {
-      let logs = "--- Starting Orbit Build ---\n";
-      const buildProcess = execa('npm', ['run', 'build']);
-
-      buildProcess.stdout?.on('data', async (chunk) => {
-        logs += chunk.toString();
-        await supabase.from('deployments').update({ logs }).eq('id', deployRecord.id);
+      console.log(chalk.blue('🛠️  Running build check...'));
+      let currentLogs = "--- Orbit Build Sequence ---\n";
+      
+      const build = execa('npm', ['run', 'build']);
+      build.stdout?.on('data', async (chunk) => {
+        const line = chunk.toString();
+        process.stdout.write(chalk.gray(line));
+        currentLogs += line;
+        await supabase.from('deployments').update({ logs: currentLogs }).eq('id', deployRecord.id);
       });
 
-      await buildProcess;
+      await build;
 
       if (answers.platform === 'Vercel') {
+        console.log(chalk.cyan('\n🚀 Pushing to Vercel...'));
         await execa('npx', ['vercel', '--confirm'], { stdio: 'inherit' });
       }
 
       await supabase.from('projects').update({ status: 'success' }).eq('id', project.id);
+      await supabase.from('deployments').update({ status: 'success' }).eq('id', deployRecord.id);
       console.log(chalk.green('\n✅ Project successfully orbited!'));
 
     } catch (err) {
-      console.error(chalk.red('\n❌ Deployment failed.'));
+      console.error(chalk.red('\n❌ Build/Deploy failed. Check logs on dashboard.'));
       await supabase.from('projects').update({ status: 'failed' }).eq('id', project.id);
     } finally {
       clearInterval(metricInterval);
     }
+  });
+
+  program
+  .command('tunnel')
+  .description('Expose your local port to the internet')
+  .argument('<port>', 'Local port to expose')
+  .action(async (port) => {
+    console.log(chalk.bold.bgBlue.white(' ORBIT TUNNEL ') + ` Starting on port ${port}...`);
+    
+    
+    const tunnel = spawn('cloudflared', ['tunnel', '--url', `http://localhost:${port}`]);
+
+    tunnel.stdout.on('data', (data) => {
+      const output = data.toString();
+      const urlMatch = output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+      if (urlMatch) {
+        console.log(chalk.green.bold(`\n🌎 Your Orbit is live at: ${urlMatch[0]}`));
+        console.log(chalk.gray('Logs are being streamed to your dashboard...'));
+      }
+    });
+
+    tunnel.stderr.on('data', (data) => {
+        const output = data.toString();
+        const urlMatch = output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+        if (urlMatch) console.log(chalk.green.bold(`\n🌎 Live Link: ${urlMatch[0]}`));
+    });
   });
 
 program.parse();
