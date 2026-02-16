@@ -48,12 +48,14 @@ function LogsContent() {
                     <Link href={`/projects/${id}`} className="flex items-center gap-2 text-xs font-black uppercase hover:underline">
                         <ArrowLeft size={16} /> Back to Overview
                     </Link>
-                    <div className="flex items-center gap-2 text-blue-600 font-black uppercase italic text-sm">
+                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-black uppercase italic text-sm">
                         <TerminalIcon size={18} /> Terminal Output
                     </div>
                 </div>
 
-                <TerminalView logs={logs} />
+                <div className="border-4 border-black dark:border-white/10 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] dark:shadow-[8px_8px_0px_0px_rgba(59,130,246,0.3)] bg-[#0a0a0a] p-2 rounded-none">
+                    <TerminalView logs={logs} />
+                </div>
                 <p className="mt-4 text-[10px] font-mono text-gray-400 uppercase tracking-widest text-right">
                     End of Stream // Orbit Engine v1.2
                 </p>

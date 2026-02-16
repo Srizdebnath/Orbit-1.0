@@ -17,12 +17,12 @@ export default function TerminalView({ logs }: { logs: string }) {
       fontSize: 12,
       cursorBlink: true,
     });
-    
+
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(terminalRef.current);
     fitAddon.fit();
-    
+
     xtermRef.current = term;
     return () => term.dispose();
   }, []);
@@ -36,7 +36,7 @@ export default function TerminalView({ logs }: { logs: string }) {
   }, [logs]);
 
   return (
-    <div className="border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] bg-[#0a0a0a] p-2">
+    <div className="border-4 border-black dark:border-white/10 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] dark:shadow-[8px_8px_0px_0px_rgba(59,130,246,0.3)] bg-[#0a0a0a] p-2">
       <div ref={terminalRef} className="h-[400px]" />
     </div>
   );

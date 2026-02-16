@@ -37,7 +37,7 @@ export default function MetricChart({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   return (
-    <div className="h-24 w-full bg-white border-t-2 border-black/5">
+    <div className="h-24 w-full bg-white dark:bg-transparent border-t-2 border-black/5 dark:border-white/5">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data}>
           <defs>
@@ -46,7 +46,7 @@ export default function MetricChart({ projectId }: { projectId: string }) {
               <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(128,128,128,0.1)" />
           <Area
             type="stepAfter"
             dataKey="cpu"

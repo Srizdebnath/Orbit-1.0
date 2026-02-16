@@ -48,15 +48,15 @@ function AuthContent() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-      <div className="w-full max-w-md p-10 border-4 border-black bg-white shadow-[16px_16px_0px_0px_rgba(0,0,0,1)]">
-        <h1 className="text-5xl font-black italic uppercase tracking-tighter mb-6 underline decoration-blue-500">
+      <div className="w-full max-w-md p-10 border-4 border-black dark:border-white/10 bg-white dark:bg-white/[0.03] shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] dark:shadow-[16px_16px_0px_0px_rgba(59,130,246,0.3)]">
+        <h1 className="text-5xl font-black italic uppercase tracking-tighter mb-6 underline decoration-blue-500 dark:decoration-blue-400">
           CLI AUTH
         </h1>
         <div className="font-mono text-sm space-y-4">
-          <p className="bg-gray-100 p-2 border-2 border-black inline-block">
+          <p className="bg-gray-100 dark:bg-white/10 p-2 border-2 border-black dark:border-white/10 inline-block">
             HANDSHAKE: <span className="font-bold">{code || '---'}</span>
           </p>
-          <div className="py-6 border-y-2 border-black border-dashed mt-4">
+          <div className="py-6 border-y-2 border-black dark:border-white/10 border-dashed mt-4">
             <p className="text-lg font-bold">{status}</p>
           </div>
           <p className="text-[10px] text-gray-400 pt-4 uppercase tracking-widest">

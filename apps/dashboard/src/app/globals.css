@@ -1,21 +1,136 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --grid-size: 40px;
   --grid-color: rgba(0, 0, 0, 0.04);
 }
 
+.dark {
+  --grid-color: rgba(255, 255, 255, 0.03);
+}
+
 body {
-  background-color: #fff;
-  background-image: 
+  background-image:
     linear-gradient(var(--grid-color) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
   background-size: var(--grid-size) var(--grid-size);
+}
+
+/* Custom selection color */
+::selection {
+  background: #2563eb;
+  color: #fff;
+}
+
+.dark ::selection {
+  background: #3b82f6;
   color: #000;
 }
 
-/* Custom selection color for that "cool" look */
-::selection {
-  background: #000;
-  color: #fff;
+/* No-transition utility for elements that should skip theme transitions */
+.no-transition {
+  transition: none !important;
+}
+
+/* macOS Terminal Styles */
+.mac-terminal {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+}
+
+.mac-terminal-header {
+  background: linear-gradient(180deg, #3a3a3c 0%, #2c2c2e 100%);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.mac-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.mac-dot-red {
+  background: #ff5f57;
+}
+
+.mac-dot-yellow {
+  background: #febc2e;
+}
+
+.mac-dot-green {
+  background: #28c840;
+}
+
+.mac-terminal-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #a1a1aa;
+  font-weight: 600;
+}
+
+.mac-terminal-body {
+  background: #1c1c1e;
+  padding: 20px;
+  font-family: var(--font-mono), 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #e5e5e5;
+  min-height: 60px;
+}
+
+.mac-terminal-body .prompt {
+  color: #28c840;
+  font-weight: 700;
+}
+
+.mac-terminal-body .command {
+  color: #f0f0f0;
+}
+
+.mac-terminal-body .output {
+  color: #a1a1aa;
+}
+
+.mac-terminal-body .flag {
+  color: #febc2e;
+}
+
+.mac-terminal-body .success {
+  color: #28c840;
+}
+
+.mac-terminal-body .error {
+  color: #ff5f57;
+}
+
+.mac-terminal-body .info {
+  color: #60a5fa;
+}
+
+/* Scrollbar styling for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
