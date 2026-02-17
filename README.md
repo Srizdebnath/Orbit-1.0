@@ -58,8 +58,8 @@ orbit/
 ├── packages/
 │   └── cli/                    # TypeScript CLI — @srizdebnath/orbit on npm
 │       └── src/
-│           ├── index.ts        # Main entry — login, logout, deploy (all 4 platforms)
-│           ├── config.ts       # Supabase URL, anon key, dashboard URL
+│           ├── index.ts        # Main entry — login, logout, status, rollback, deploy
+│           ├── config.ts       # Supabase URL, anon key, dashboard URL (bundled)
 │           └── engine.ts       # VPS engine — SSH → tar upload → Docker build → Caddy
 │
 ├── .gitignore
@@ -144,6 +144,8 @@ npm install -g @srizdebnath/orbit
 |---|---|
 | `orbit login` | Authenticate via 6-digit code + GitHub OAuth (2-min timeout) |
 | `orbit logout` | Remove local session (`~/.orbit_session.json`) |
+| `orbit status` | View the status of all your projects — platform, URL, deploy count, last deploy time |
+| `orbit rollback` | Rollback a project to a previous deployment — interactive history picker |
 | `orbit deploy` | Interactive deploy — pick platform, build, push, stream logs |
 | `orbit --version` | Print current version |
 
@@ -181,14 +183,18 @@ The CLI bundles the production Supabase anon key. If self-hosting, update `confi
 
 ## 🗺️ Roadmap
 
-- [ ] `orbit status` — Check deployment status from terminal
-- [ ] `orbit rollback` — Revert to a previous deployment
+- [x] `orbit status` — Check deployment status from terminal
+- [x] `orbit rollback` — Revert to a previous deployment
+- [x] Dark mode
+- [ ] `orbit logs` — Stream live logs from terminal
+- [ ] `orbit env` — Manage environment variables per project
 - [ ] Custom domain support per project
-- [ ] Environment variables management in dashboard
-- [ ] Dark mode
-- [ ] Docker Compose for local self-hosting
+- [ ] Multi-user organizations & role-based access
 - [ ] GitHub Actions CI/CD integration
 - [ ] Webhook notifications (Slack / Discord)
+- [ ] Docker Compose for local self-hosting
+- [ ] Build caching & incremental deploys
+- [ ] Usage analytics & billing dashboard
 
 ---
 

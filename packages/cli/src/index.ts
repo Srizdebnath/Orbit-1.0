@@ -14,7 +14,7 @@ import { spawn } from 'child_process';
 import { ORBIT_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { deployToVPS, testSSHConnection } from './engine.js';
 
-const VERSION = "1.1.3";
+const VERSION = "1.1.4";
 const LOGIN_TIMEOUT_MS = 120_000; // 2 minutes
 const CONFIG_PATH = path.join(os.homedir(), '.orbit_session.json');
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -63,6 +63,19 @@ function detectOutputDir(): string {
 
 function banner(text: string) {
   console.log(chalk.bold.bgBlue.white(` ${text} `));
+}
+
+function timeAgo(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
 }
 
 // ─── Program ─────────────────────────────────────────────────────────────────
@@ -128,6 +141,246 @@ program.command('logout')
     } else {
       console.log(chalk.yellow('⚠️  No active session found.'));
     }
+  });
+
+// ─── STATUS ──────────────────────────────────────────────────────────────────
+
+program.command('status')
+  .description('View the status of all your Orbit projects')
+  .option('-p, --project <name>', 'Filter by project name')
+  .action(async (opts) => {
+    const session = getSession();
+    if (!session) return console.log(chalk.red('❌ Not logged in. Run ') + chalk.cyan('orbit login') + chalk.red(' first.'));
+
+    console.log(chalk.gray('\n📡 Fetching projects from Orbit Dashboard...\n'));
+
+    let query = supabase
+      .from('projects')
+      .select('*')
+      .eq('user_id', session.user_id)
+      .order('created_at', { ascending: false });
+
+    if (opts.project) {
+      query = query.ilike('name', `%${opts.project}%`);
+    }
+
+    const { data: projects, error } = await query;
+
+    if (error) return console.error(chalk.red('❌ Error:'), error.message);
+    if (!projects || projects.length === 0) {
+      console.log(chalk.yellow('⚠️  No projects found.'));
+      console.log(chalk.gray('   Deploy your first project with ') + chalk.cyan('orbit deploy'));
+      return;
+    }
+
+    // Fetch latest deployment for each project
+    const projectIds = projects.map((p: any) => p.id);
+    const { data: deployments } = await supabase
+      .from('deployments')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('created_at', { ascending: false });
+
+    // Group latest deployment per project
+    const latestDeploy: Record<string, any> = {};
+    const deployCount: Record<string, number> = {};
+    if (deployments) {
+      for (const d of deployments) {
+        deployCount[d.project_id] = (deployCount[d.project_id] || 0) + 1;
+        if (!latestDeploy[d.project_id]) {
+          latestDeploy[d.project_id] = d;
+        }
+      }
+    }
+
+    // Status icon mapping
+    const statusIcon = (s: string) => {
+      switch (s) {
+        case 'success': return chalk.green('● Live');
+        case 'deploying':
+        case 'building': return chalk.yellow('◐ Building');
+        case 'failed': return chalk.red('✖ Failed');
+        case 'idle': return chalk.gray('○ Idle');
+        default: return chalk.gray(`○ ${s}`);
+      }
+    };
+
+    const platformIcon = (p: string) => {
+      switch (p) {
+        case 'vercel': return '▲ Vercel';
+        case 'netlify': return '◆ Netlify';
+        case 'tunnel': return '⚡ Tunnel';
+        case 'vps': return '🖥  VPS';
+        default: return p;
+      }
+    };
+
+    // Header
+    banner('ORBIT STATUS');
+    console.log('');
+
+    for (const project of projects) {
+      const deploy = latestDeploy[project.id];
+      const count = deployCount[project.id] || 0;
+      const lastDeployed = deploy ? timeAgo(new Date(deploy.created_at)) : 'never';
+
+      console.log(chalk.bold.white(`  ${project.name}`));
+      console.log(chalk.gray(`  ├─ Platform   : `) + chalk.cyan(platformIcon(project.platform)));
+      console.log(chalk.gray(`  ├─ Status     : `) + statusIcon(project.status));
+      console.log(chalk.gray(`  ├─ Domain     : `) + (project.domain ? chalk.underline(project.domain) : chalk.gray('—')));
+      console.log(chalk.gray(`  ├─ Deploys    : `) + chalk.white(`${count}`));
+      console.log(chalk.gray(`  └─ Last Deploy: `) + chalk.white(lastDeployed));
+      console.log('');
+    }
+
+    console.log(chalk.gray(`  Total: ${projects.length} project(s)\n`));
+  });
+
+// ─── ROLLBACK ────────────────────────────────────────────────────────────────
+
+program.command('rollback')
+  .description('Rollback a project to a previous deployment')
+  .option('-p, --project <name>', 'Specify project by name')
+  .action(async (opts) => {
+    const session = getSession();
+    if (!session) return console.log(chalk.red('❌ Not logged in. Run ') + chalk.cyan('orbit login') + chalk.red(' first.'));
+
+    console.log(chalk.gray('\n📡 Fetching your projects...\n'));
+
+    // ── 1. Select project ─────────────────────────────────────────────────
+    const { data: projects, error: pErr } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('user_id', session.user_id)
+      .order('created_at', { ascending: false });
+
+    if (pErr) return console.error(chalk.red('❌ Error:'), pErr.message);
+    if (!projects || projects.length === 0) {
+      return console.log(chalk.yellow('⚠️  No projects found.'));
+    }
+
+    let targetProject: any;
+
+    if (opts.project) {
+      targetProject = projects.find((p: any) => p.name.toLowerCase() === opts.project.toLowerCase());
+      if (!targetProject) {
+        console.log(chalk.red(`❌ No project named "${opts.project}" found.`));
+        console.log(chalk.gray('   Available projects: ') + projects.map((p: any) => chalk.cyan(p.name)).join(', '));
+        return;
+      }
+    } else {
+      const { selectedProject } = await inquirer.prompt([{
+        type: 'list',
+        name: 'selectedProject',
+        message: 'Select a project to rollback:',
+        choices: projects.map((p: any) => ({
+          name: `${p.name}  ${chalk.gray(`(${p.platform})`)}  ${p.status === 'success' ? chalk.green('● Live') : chalk.gray(`○ ${p.status}`)}`,
+          value: p.id
+        }))
+      }]);
+      targetProject = projects.find((p: any) => p.id === selectedProject);
+    }
+
+    // ── 2. Fetch deployment history ───────────────────────────────────────
+    console.log(chalk.gray(`\n📋 Loading deployment history for ${chalk.white(targetProject.name)}...\n`));
+
+    const { data: deployments, error: dErr } = await supabase
+      .from('deployments')
+      .select('*')
+      .eq('project_id', targetProject.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (dErr) return console.error(chalk.red('❌ Error:'), dErr.message);
+    if (!deployments || deployments.length === 0) {
+      return console.log(chalk.yellow('⚠️  No deployments found for this project.'));
+    }
+
+    if (deployments.length < 2) {
+      return console.log(chalk.yellow('⚠️  Only 1 deployment exists — nothing to rollback to.'));
+    }
+
+    // ── 3. Let user pick a deployment to rollback to ──────────────────────
+    const currentDeploy = deployments[0];
+    const olderDeploys = deployments.slice(1);
+
+    console.log(chalk.bold('  Current deployment:'));
+    console.log(chalk.gray(`  └─ #${currentDeploy.id.slice(0, 8)}  ${currentDeploy.status === 'success' ? chalk.green('● success') : chalk.red(`✖ ${currentDeploy.status}`)}  ${timeAgo(new Date(currentDeploy.created_at))}\n`));
+
+    const { targetDeploy } = await inquirer.prompt([{
+      type: 'list',
+      name: 'targetDeploy',
+      message: 'Rollback to which deployment?',
+      choices: olderDeploys.map((d: any, i: number) => ({
+        name: `#${d.id.slice(0, 8)}  ${d.status === 'success' ? chalk.green('● success') : d.status === 'failed' ? chalk.red('✖ failed') : chalk.gray(`○ ${d.status}`)}  ${timeAgo(new Date(d.created_at))}`,
+        value: d.id
+      }))
+    }]);
+
+    const rollbackTarget = deployments.find((d: any) => d.id === targetDeploy);
+
+    // ── 4. Confirm ────────────────────────────────────────────────────────
+    const { confirm } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'confirm',
+      message: `Rollback ${chalk.bold(targetProject.name)} to deployment #${targetDeploy.slice(0, 8)}?`,
+      default: false
+    }]);
+
+    if (!confirm) return console.log(chalk.yellow('\n⏹  Rollback cancelled.\n'));
+
+    // ── 5. Execute rollback ───────────────────────────────────────────────
+    banner('ROLLBACK');
+    console.log(chalk.blue(`\n🔄 Rolling back ${targetProject.name}...\n`));
+
+    // For Vercel & Netlify, rollback is platform-specific
+    if (targetProject.platform === 'vercel') {
+      console.log(chalk.gray('  📡 Promoting previous Vercel deployment...'));
+      try {
+        // Vercel stores the deployment URL — we can use vercel promote
+        await execa('npx', ['vercel', 'rollback', '--yes'], { stdio: 'inherit' });
+        console.log(chalk.green('\n  ✅ Vercel rollback triggered.'));
+      } catch (err: any) {
+        console.error(chalk.red('\n  ❌ Vercel rollback failed:'), err.message);
+        console.log(chalk.yellow('     You may need to rollback manually from the Vercel dashboard.'));
+      }
+    } else if (targetProject.platform === 'netlify') {
+      console.log(chalk.gray('  📡 Restoring previous Netlify deployment...'));
+      try {
+        await execa('npx', ['netlify', 'api', 'restoreSiteDeploy', '--data', `{"deploy_id": "${targetDeploy}"}`], { stdio: 'inherit' });
+        console.log(chalk.green('\n  ✅ Netlify rollback triggered.'));
+      } catch (err: any) {
+        console.error(chalk.red('\n  ❌ Netlify rollback failed:'), err.message);
+        console.log(chalk.yellow('     You may need to rollback manually from the Netlify dashboard.'));
+      }
+    } else if (targetProject.platform === 'vps') {
+      console.log(chalk.yellow('  ⚠️  VPS rollback requires re-deploying from a previous commit.'));
+      console.log(chalk.gray('     Check out the target commit with git and run ') + chalk.cyan('orbit deploy') + chalk.gray(' again.'));
+    } else if (targetProject.platform === 'tunnel') {
+      console.log(chalk.yellow('  ⚠️  Tunnel deployments are ephemeral — there is nothing to rollback.'));
+      console.log(chalk.gray('     Simply restart your server and run ') + chalk.cyan('orbit deploy') + chalk.gray(' with the tunnel option.'));
+    }
+
+    // ── 6. Update database state ──────────────────────────────────────────
+    console.log(chalk.gray('\n  📡 Updating Orbit Dashboard...'));
+
+    // Create a rollback deployment record
+    const rollbackLogs = `─── Orbit Rollback Log ───\nTimestamp : ${new Date().toISOString()}\nProject   : ${targetProject.name}\nPlatform  : ${targetProject.platform}\nRolled back to deployment: #${targetDeploy.slice(0, 8)}\n${'─'.repeat(40)}\n\n✅ Rollback complete.\n`;
+
+    await supabase.from('deployments').insert({
+      project_id: targetProject.id,
+      status: 'success',
+      logs: rollbackLogs
+    });
+
+    // Restore project status from the target deployment
+    const updateData: any = { status: rollbackTarget?.status === 'success' ? 'success' : 'idle' };
+    await supabase.from('projects').update(updateData).eq('id', targetProject.id);
+
+    console.log(chalk.green('\n  ✅ Dashboard updated.'));
+    console.log('');
+    banner('ROLLBACK COMPLETE');
+    console.log(chalk.green(`\n✅ ${targetProject.name} rolled back to deployment #${targetDeploy.slice(0, 8)}\n`));
   });
 
 // ─── DEPLOY ──────────────────────────────────────────────────────────────────

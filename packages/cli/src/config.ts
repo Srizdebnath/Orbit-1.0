@@ -1,17 +1,7 @@
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
+// ─── Orbit CLI Configuration ─────────────────────────────────────────────────
+// These are PUBLIC keys (anon key) — safe to embed in client-side code.
+// All security is enforced via Supabase Row Level Security (RLS) policies.
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
-
-export const ORBIT_URL = process.env.ORBIT_URL || "";
-export const SUPABASE_URL = process.env.SUPABASE_URL || "";
-export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error("❌ Missing SUPABASE_URL or SUPABASE_ANON_KEY in packages/cli/.env");
-    process.exit(1);
-}
+export const ORBIT_URL = "https://orbit-gamma-seven.vercel.app";
+export const SUPABASE_URL = "https://hgsfcfkklgmjljtzxrtd.supabase.co";
+export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc2ZjZmtrbGdtamxqdHp4cnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNjMwMzksImV4cCI6MjA4NjczOTAzOX0.wa1_v1rLpL9i5Q3svVV7aVlcg_15E6pZaFFHM3nwnlA";

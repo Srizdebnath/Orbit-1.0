@@ -5,7 +5,8 @@ import {
   Terminal, Cpu, Cloud, Zap, Copy, Check,
   Rocket, ShieldCheck, Server, Wifi,
   Package, LogIn, LogOut, ChevronRight,
-  ArrowRight, MonitorSmartphone, HardDrive, Globe, Lock
+  ArrowRight, MonitorSmartphone, HardDrive, Globe, Lock,
+  Activity, RotateCcw
 } from 'lucide-react';
 
 // ─── Mac Terminal Component ──────────────────────────────────────────────
@@ -183,7 +184,7 @@ export default function Setup() {
                   <CopyButton text="npm install -g @srizdebnath/orbit" />
                 </p>
                 <p className="output mt-2">added 142 packages in 8s</p>
-                <p className="success">✅ orbit@1.1.3 installed globally</p>
+                <p className="success">✅ orbit@1.1.4 installed globally</p>
               </MacTerminal>
             </div>
 
@@ -286,12 +287,61 @@ export default function Setup() {
             />
 
             <CommandCard
+              command="orbit status"
+              description="View the status of all your deployed projects — platform, live URL, deploy count, and last deploy time."
+              icon={<Activity size={20} />}
+              flags={[
+                { flag: '-p, --project <name>', desc: 'Filter by project name' }
+              ]}
+              example={{
+                input: 'orbit status',
+                output: [
+                  ' ORBIT STATUS ',
+                  '',
+                  '  my-awesome-project',
+                  '  ├─ Platform   : ▲ Vercel',
+                  '  ├─ Status     : ● Live',
+                  '  ├─ Domain     : https://my-awesome-project.vercel.app',
+                  '  ├─ Deploys    : 5',
+                  '  └─ Last Deploy: 2h ago',
+                  '',
+                  '  Total: 1 project(s)'
+                ]
+              }}
+            />
+
+            <CommandCard
+              command="orbit rollback"
+              description="Rollback a project to a previous deployment. Shows deployment history and lets you pick which version to restore."
+              icon={<RotateCcw size={20} />}
+              flags={[
+                { flag: '-p, --project <name>', desc: 'Specify project by name (skip interactive picker)' }
+              ]}
+              example={{
+                input: 'orbit rollback',
+                output: [
+                  '? Select a project to rollback: my-awesome-project (vercel) ● Live',
+                  '',
+                  '  Current deployment:',
+                  '  └─ #a1b2c3d4  ● success  2h ago',
+                  '',
+                  '? Rollback to which deployment?',
+                  '  #e5f6g7h8  ● success  1d ago',
+                  '  #i9j0k1l2  ● success  3d ago',
+                  '',
+                  ' ROLLBACK COMPLETE ',
+                  '✅ my-awesome-project rolled back to deployment #e5f6g7h8'
+                ]
+              }}
+            />
+
+            <CommandCard
               command="orbit --version"
               description="Print the currently installed version of the Orbit CLI."
               icon={<Package size={20} />}
               example={{
                 input: 'orbit --version',
-                output: ['1.1.3']
+                output: ['1.1.4']
               }}
             />
 
@@ -307,14 +357,16 @@ export default function Setup() {
                   'Deploy anywhere from your terminal. Powered by Orbit.',
                   '',
                   'Options:',
-                  '  -V, --version   output the version number',
-                  '  -h, --help      display help for command',
+                  '  -V, --version       output the version number',
+                  '  -h, --help          display help for command',
                   '',
                   'Commands:',
-                  '  login           Authenticate your terminal with the Orbit Dashboard',
-                  '  logout          Remove your local Orbit session',
-                  '  deploy          Build, deploy, and stream telemetry for your project',
-                  '  help [command]  display help for command'
+                  '  login               Authenticate your terminal',
+                  '  logout              Remove your local Orbit session',
+                  '  status [options]    View the status of all your Orbit projects',
+                  '  rollback [options]  Rollback a project to a previous deployment',
+                  '  deploy              Build, deploy, and stream telemetry',
+                  '  help [command]      display help for command'
                 ]
               }}
             />
