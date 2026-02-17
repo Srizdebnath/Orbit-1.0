@@ -4,7 +4,9 @@ import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from './ThemeProvider';
-import { Sun, Moon, Key } from 'lucide-react';
+import { Sun, Moon, Key, ShieldCheck } from 'lucide-react';
+
+const ADMIN_GITHUB_USERNAME = 'Srizdebnath';
 
 export default function Navbar() {
   const [user, setUser] = useState<any>(null);
@@ -32,6 +34,8 @@ export default function Navbar() {
     router.refresh();
   };
 
+  const isAdmin = user?.user_metadata?.user_name?.toLowerCase() === ADMIN_GITHUB_USERNAME.toLowerCase();
+
   return (
     <nav className="fixed top-0 w-full z-50 px-6 py-4">
       <div className="max-w-7xl mx-auto flex justify-between items-center bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-black/5 dark:border-white/10 px-6 py-3 rounded-2xl shadow-sm dark:shadow-lg dark:shadow-black/20">
@@ -43,6 +47,11 @@ export default function Navbar() {
           <Link href="/" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Projects</Link>
           <Link href="/keys" className="flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><Key size={14} /> Keys</Link>
           <Link href="/setup" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Setup</Link>
+          {isAdmin && (
+            <Link href="/admin" className="flex items-center gap-1.5 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors">
+              <ShieldCheck size={14} /> Admin
+            </Link>
+          )}
 
           {/* Theme Toggle */}
           <button
