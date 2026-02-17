@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from './ThemeProvider';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, Key } from 'lucide-react';
 
 export default function Navbar() {
   const [user, setUser] = useState<any>(null);
@@ -41,6 +41,7 @@ export default function Navbar() {
 
         <div className="flex items-center gap-6 text-sm font-medium">
           <Link href="/" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Projects</Link>
+          <Link href="/keys" className="flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><Key size={14} /> Keys</Link>
           <Link href="/setup" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Setup</Link>
 
           {/* Theme Toggle */}

@@ -146,6 +146,10 @@ npm install -g @srizdebnath/orbit
 | `orbit logout` | Remove local session (`~/.orbit_session.json`) |
 | `orbit status` | View the status of all your projects — platform, URL, deploy count, last deploy time |
 | `orbit rollback` | Rollback a project to a previous deployment — interactive history picker |
+| `orbit env` | Manage environment variables per project — set, list, rm, pull |
+| `orbit logs` | View deployment logs — use `-f` to follow live |
+| `orbit token` | Manage API keys for CI/CD — create, list, revoke |
+| `orbit domains` | Manage custom domains — add, list, rm, with SSL tracking |
 | `orbit deploy` | Interactive deploy — pick platform, build, push, stream logs |
 | `orbit --version` | Print current version |
 
@@ -186,9 +190,10 @@ The CLI bundles the production Supabase anon key. If self-hosting, update `confi
 - [x] `orbit status` — Check deployment status from terminal
 - [x] `orbit rollback` — Revert to a previous deployment
 - [x] Dark mode
-- [ ] `orbit logs` — Stream live logs from terminal
-- [ ] `orbit env` — Manage environment variables per project
-- [ ] Custom domain support per project
+- [x] `orbit logs` — Stream live logs from terminal with `-f` follow mode
+- [x] `orbit env` — Manage environment variables per project
+- [x] `orbit token` — API key auth for CI/CD pipelines
+- [x] `orbit domains` — Custom domain support per project
 - [ ] Multi-user organizations & role-based access
 - [ ] GitHub Actions CI/CD integration
 - [ ] Webhook notifications (Slack / Discord)

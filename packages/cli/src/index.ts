@@ -10,11 +10,12 @@ import path from 'path';
 import os from 'os';
 import open from 'open';
 import net from 'net';
+import crypto from 'crypto';
 import { spawn } from 'child_process';
 import { ORBIT_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { deployToVPS, testSSHConnection } from './engine.js';
 
-const VERSION = "1.1.4";
+const VERSION = "1.2.0";
 const LOGIN_TIMEOUT_MS = 120_000; // 2 minutes
 const CONFIG_PATH = path.join(os.homedir(), '.orbit_session.json');
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -76,6 +77,49 @@ function timeAgo(date: Date): string {
   if (days < 30) return `${days}d ago`;
   const months = Math.floor(days / 30);
   return `${months}mo ago`;
+}
+
+async function resolveProject(session: any, projectNameOpt?: string): Promise<any | null> {
+  const { data: projects, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('user_id', session.user_id)
+    .order('created_at', { ascending: false });
+
+  if (error || !projects || projects.length === 0) {
+    console.log(chalk.yellow('⚠️  No projects found.'));
+    return null;
+  }
+
+  if (projectNameOpt) {
+    const found = projects.find((p: any) => p.name.toLowerCase() === projectNameOpt.toLowerCase());
+    if (!found) {
+      console.log(chalk.red(`❌ No project named "${projectNameOpt}" found.`));
+      console.log(chalk.gray('   Available: ') + projects.map((p: any) => chalk.cyan(p.name)).join(', '));
+      return null;
+    }
+    return found;
+  }
+
+  const { selectedProject } = await inquirer.prompt([{
+    type: 'list',
+    name: 'selectedProject',
+    message: 'Select a project:',
+    choices: projects.map((p: any) => ({
+      name: `${p.name}  ${chalk.gray(`(${p.platform})`)}  ${p.status === 'success' ? chalk.green('● Live') : chalk.gray(`○ ${p.status}`)}`,
+      value: p.id
+    }))
+  }]);
+  return projects.find((p: any) => p.id === selectedProject);
+}
+
+function requireSession(): any {
+  const session = getSession();
+  if (!session) {
+    console.log(chalk.red('❌ Not logged in. Run ') + chalk.cyan('orbit login') + chalk.red(' first.'));
+    return null;
+  }
+  return session;
 }
 
 // ─── Program ─────────────────────────────────────────────────────────────────
@@ -381,6 +425,476 @@ program.command('rollback')
     console.log('');
     banner('ROLLBACK COMPLETE');
     console.log(chalk.green(`\n✅ ${targetProject.name} rolled back to deployment #${targetDeploy.slice(0, 8)}\n`));
+  });
+
+// ─── ENV ─────────────────────────────────────────────────────────────────────
+
+const envCmd = program.command('env').description('Manage environment variables for your projects');
+
+envCmd.command('set <pairs...>')
+  .description('Set environment variables (KEY=VALUE ...)')
+  .option('-p, --project <name>', 'Project name')
+  .action(async (pairs: string[], opts) => {
+    const session = requireSession();
+    if (!session) return;
+
+    const project = await resolveProject(session, opts.project);
+    if (!project) return;
+
+    console.log(chalk.gray(`\n🔐 Setting env vars for ${chalk.white(project.name)}...\n`));
+
+    let successCount = 0;
+    for (const pair of pairs) {
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex === -1) {
+        console.log(chalk.red(`  ✖ Invalid format: ${pair}  (use KEY=VALUE)`));
+        continue;
+      }
+      const key = pair.substring(0, eqIndex).trim();
+      const value = pair.substring(eqIndex + 1).trim();
+
+      if (!key) {
+        console.log(chalk.red(`  ✖ Empty key in: ${pair}`));
+        continue;
+      }
+
+      const { error } = await supabase
+        .from('env_variables')
+        .upsert({ project_id: project.id, key, value, updated_at: new Date().toISOString() },
+          { onConflict: 'project_id,key' });
+
+      if (error) {
+        console.log(chalk.red(`  ✖ ${key}: ${error.message}`));
+      } else {
+        console.log(chalk.green(`  ✔ ${key}`) + chalk.gray(` = ${value.length > 40 ? value.slice(0, 40) + '...' : value}`));
+        successCount++;
+      }
+    }
+
+    console.log(chalk.gray(`\n  ${successCount}/${pairs.length} variables set.\n`));
+  });
+
+envCmd.command('list')
+  .description('List all environment variables for a project')
+  .option('-p, --project <name>', 'Project name')
+  .option('--show-values', 'Show values (default: masked)')
+  .action(async (opts) => {
+    const session = requireSession();
+    if (!session) return;
+
+    const project = await resolveProject(session, opts.project);
+    if (!project) return;
+
+    const { data: vars, error } = await supabase
+      .from('env_variables')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('key', { ascending: true });
+
+    if (error) return console.error(chalk.red('❌ Error:'), error.message);
+
+    if (!vars || vars.length === 0) {
+      console.log(chalk.yellow(`\n⚠️  No env vars found for ${project.name}.`));
+      console.log(chalk.gray(`   Set them with: orbit env set KEY=VALUE -p ${project.name}\n`));
+      return;
+    }
+
+    banner(`ENV — ${project.name.toUpperCase()}`);
+    console.log('');
+
+    for (const v of vars) {
+      const maskedValue = opts.showValues ? v.value : '•'.repeat(Math.min(v.value.length, 24));
+      console.log(chalk.cyan(`  ${v.key}`) + chalk.gray(' = ') + chalk.white(maskedValue));
+    }
+
+    console.log(chalk.gray(`\n  ${vars.length} variable(s)\n`));
+  });
+
+envCmd.command('rm <keys...>')
+  .description('Remove environment variables')
+  .option('-p, --project <name>', 'Project name')
+  .action(async (keys: string[], opts) => {
+    const session = requireSession();
+    if (!session) return;
+
+    const project = await resolveProject(session, opts.project);
+    if (!project) return;
+
+    console.log(chalk.gray(`\n🗑  Removing env vars from ${chalk.white(project.name)}...\n`));
+
+    for (const key of keys) {
+      const { error } = await supabase
+        .from('env_variables')
+        .delete()
+        .eq('project_id', project.id)
+        .eq('key', key);
+
+      if (error) {
+        console.log(chalk.red(`  ✖ ${key}: ${error.message}`));
+      } else {
+        console.log(chalk.green(`  ✔ ${key} removed`));
+      }
+    }
+    console.log('');
+  });
+
+envCmd.command('pull')
+  .description('Download env vars to a local .env file')
+  .option('-p, --project <name>', 'Project name')
+  .option('-o, --output <file>', 'Output file', '.env')
+  .action(async (opts) => {
+    const session = requireSession();
+    if (!session) return;
+
+    const project = await resolveProject(session, opts.project);
+    if (!project) return;
+
+    const { data: vars, error } = await supabase
+      .from('env_variables')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('key', { ascending: true });
+
+    if (error) return console.error(chalk.red('❌ Error:'), error.message);
+    if (!vars || vars.length === 0) return console.log(chalk.yellow('⚠️  No env vars to pull.'));
+
+    const envContent = `# Orbit env vars for: ${project.name}\n# Pulled at: ${new Date().toISOString()}\n\n` +
+      vars.map((v: any) => `${v.key}=${v.value}`).join('\n') + '\n';
+
+    const outPath = path.resolve(process.cwd(), opts.output);
+    fs.writeFileSync(outPath, envContent);
+    console.log(chalk.green(`\n✅ ${vars.length} variable(s) written to ${chalk.underline(outPath)}\n`));
+  });
+
+// ─── LOGS ────────────────────────────────────────────────────────────────────
+
+program.command('logs')
+  .description('View deployment logs (use -f to follow live)')
+  .option('-p, --project <name>', 'Project name')
+  .option('-f, --follow', 'Follow live log updates in real-time')
+  .option('-n, --lines <count>', 'Number of recent deployments to show', '1')
+  .action(async (opts) => {
+    const session = requireSession();
+    if (!session) return;
+
+    const project = await resolveProject(session, opts.project);
+    if (!project) return;
+
+    const limit = parseInt(opts.lines) || 1;
+
+    // Fetch recent deployments
+    const { data: deployments, error } = await supabase
+      .from('deployments')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) return console.error(chalk.red('❌ Error:'), error.message);
+    if (!deployments || deployments.length === 0) {
+      return console.log(chalk.yellow('⚠️  No deployments found.'));
+    }
+
+    // Print existing logs
+    for (const d of deployments.reverse()) {
+      console.log(chalk.gray(`\n─── Deployment #${d.id.slice(0, 8)} — ${d.status} — ${new Date(d.created_at).toLocaleString()} ───\n`));
+      console.log(d.logs || chalk.gray('(no logs)'));
+    }
+
+    // Follow mode — subscribe to realtime updates
+    if (opts.follow) {
+      console.log(chalk.cyan('\n📡 Following live logs... (Ctrl+C to stop)\n'));
+      let lastLogs = deployments[deployments.length - 1]?.logs || '';
+
+      const channel = supabase
+        .channel(`cli-logs-${project.id}`)
+        .on('postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'deployments', filter: `project_id=eq.${project.id}` },
+          (payload: any) => {
+            const newLogs: string = payload.new.logs || '';
+            // Only print the delta
+            if (newLogs.length > lastLogs.length) {
+              process.stdout.write(newLogs.slice(lastLogs.length));
+            }
+            lastLogs = newLogs;
+
+            // Stop following if deployment completed
+            if (payload.new.status === 'success' || payload.new.status === 'failed') {
+              console.log(chalk.gray(`\n\n─── Deployment ${payload.new.status === 'success' ? chalk.green('succeeded') : chalk.red('failed')} ───`));
+              supabase.removeChannel(channel);
+              process.exit(0);
+            }
+          }
+        )
+        .on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'deployments', filter: `project_id=eq.${project.id}` },
+          (payload: any) => {
+            console.log(chalk.cyan(`\n📦 New deployment started: #${payload.new.id.slice(0, 8)}`));
+            lastLogs = '';
+          }
+        )
+        .subscribe();
+
+      // Keep process alive
+      process.on('SIGINT', () => {
+        supabase.removeChannel(channel);
+        console.log(chalk.gray('\n⏹  Stopped following logs.'));
+        process.exit(0);
+      });
+
+      await new Promise(() => { });
+    }
+  });
+
+// ─── TOKEN ───────────────────────────────────────────────────────────────────
+
+const tokenCmd = program.command('token').description('Manage API keys for CI/CD pipelines');
+
+tokenCmd.command('create')
+  .description('Generate a new API key')
+  .option('-n, --name <name>', 'Key name', 'default')
+  .option('--expires <days>', 'Expiry in days (0 = never)', '0')
+  .action(async (opts) => {
+    const session = requireSession();
+    if (!session) return;
+
+    // Generate a secure random API key
+    const rawKey = `orb_${crypto.randomBytes(32).toString('hex')}`;
+    const keyPrefix = rawKey.slice(0, 12);
+    const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+
+    const expiresAt = opts.expires && parseInt(opts.expires) > 0
+      ? new Date(Date.now() + parseInt(opts.expires) * 86400000).toISOString()
+      : null;
+
+    const { error } = await supabase.from('api_keys').insert({
+      user_id: session.user_id,
+      name: opts.name,
+      key_prefix: keyPrefix,
+      key_hash: keyHash,
+      expires_at: expiresAt
+    });
+
+    if (error) return console.error(chalk.red('❌ Error:'), error.message);
+
+    banner('API KEY CREATED');
+    console.log('');
+    console.log(chalk.yellow('  ⚠️  Copy this key now — it will NOT be shown again!'));
+    console.log('');
+    console.log(chalk.bold('  Key:     ') + chalk.green(rawKey));
+    console.log(chalk.bold('  Name:    ') + chalk.white(opts.name));
+    console.log(chalk.bold('  Prefix:  ') + chalk.gray(keyPrefix));
+    console.log(chalk.bold('  Expires: ') + chalk.white(expiresAt ? new Date(expiresAt).toLocaleDateString() : 'Never'));
+    console.log('');
+    console.log(chalk.gray('  Usage in CI/CD:'));
+    console.log(chalk.cyan(`    export ORBIT_TOKEN="${rawKey}"`));
+    console.log(chalk.cyan('    orbit deploy --token $ORBIT_TOKEN'));
+    console.log('');
+  });
+
+tokenCmd.command('list')
+  .description('List all API keys')
+  .action(async () => {
+    const session = requireSession();
+    if (!session) return;
+
+    const { data: keys, error } = await supabase
+      .from('api_keys')
+      .select('*')
+      .eq('user_id', session.user_id)
+      .order('created_at', { ascending: false });
+
+    if (error) return console.error(chalk.red('❌ Error:'), error.message);
+    if (!keys || keys.length === 0) {
+      console.log(chalk.yellow('\n⚠️  No API keys found.'));
+      console.log(chalk.gray('   Create one with: orbit token create\n'));
+      return;
+    }
+
+    banner('API KEYS');
+    console.log('');
+
+    for (const k of keys) {
+      const expired = k.expires_at && new Date(k.expires_at) < new Date();
+      const statusStr = expired ? chalk.red('✖ Expired') : chalk.green('● Active');
+      const lastUsed = k.last_used_at ? timeAgo(new Date(k.last_used_at)) : 'never';
+
+      console.log(chalk.bold(`  ${k.name}`) + chalk.gray(` (${k.key_prefix}...)  `) + statusStr);
+      console.log(chalk.gray(`  ├─ Created : ${timeAgo(new Date(k.created_at))}`));
+      console.log(chalk.gray(`  ├─ Expires : ${k.expires_at ? new Date(k.expires_at).toLocaleDateString() : 'Never'}`));
+      console.log(chalk.gray(`  └─ Last Use: ${lastUsed}`));
+      console.log('');
+    }
+  });
+
+tokenCmd.command('revoke')
+  .description('Revoke an API key')
+  .action(async () => {
+    const session = requireSession();
+    if (!session) return;
+
+    const { data: keys, error } = await supabase
+      .from('api_keys')
+      .select('*')
+      .eq('user_id', session.user_id)
+      .order('created_at', { ascending: false });
+
+    if (error) return console.error(chalk.red('❌ Error:'), error.message);
+    if (!keys || keys.length === 0) return console.log(chalk.yellow('⚠️  No API keys found.'));
+
+    const { keyId } = await inquirer.prompt([{
+      type: 'list',
+      name: 'keyId',
+      message: 'Select a key to revoke:',
+      choices: keys.map((k: any) => ({
+        name: `${k.name}  ${chalk.gray(`(${k.key_prefix}...)`)}  ${chalk.gray(timeAgo(new Date(k.created_at)))}`,
+        value: k.id
+      }))
+    }]);
+
+    const { confirm } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'confirm',
+      message: 'Are you sure? This cannot be undone.',
+      default: false
+    }]);
+
+    if (!confirm) return console.log(chalk.yellow('⏹  Cancelled.'));
+
+    const { error: delError } = await supabase.from('api_keys').delete().eq('id', keyId);
+    if (delError) return console.error(chalk.red('❌ Error:'), delError.message);
+
+    console.log(chalk.green('\n✅ API key revoked.\n'));
+  });
+
+// ─── DOMAINS ─────────────────────────────────────────────────────────────────
+
+const domainsCmd = program.command('domains').description('Manage custom domains for your projects');
+
+domainsCmd.command('add <domain>')
+  .description('Add a custom domain to a project')
+  .option('-p, --project <name>', 'Project name')
+  .action(async (domain: string, opts) => {
+    const session = requireSession();
+    if (!session) return;
+
+    const project = await resolveProject(session, opts.project);
+    if (!project) return;
+
+    // Validate domain format
+    const domainRegex = /^([a-z0-9-]+\.)+[a-z]{2,}$/i;
+    if (!domainRegex.test(domain)) {
+      return console.log(chalk.red('❌ Invalid domain format. Example: app.example.com'));
+    }
+
+    console.log(chalk.gray(`\n🌐 Adding ${chalk.white(domain)} to ${chalk.white(project.name)}...\n`));
+
+    const { error } = await supabase.from('custom_domains').insert({
+      project_id: project.id,
+      domain,
+      ssl_status: 'pending',
+      verified: false
+    });
+
+    if (error) {
+      if (error.message.includes('unique') || error.message.includes('duplicate')) {
+        return console.log(chalk.yellow('⚠️  This domain is already registered.'));
+      }
+      return console.error(chalk.red('❌ Error:'), error.message);
+    }
+
+    banner('DOMAIN ADDED');
+    console.log('');
+    console.log(chalk.green(`  ✔ ${domain} → ${project.name}`));
+    console.log('');
+    console.log(chalk.bold('  Next Steps:'));
+    console.log(chalk.gray('  1. Add a DNS record pointing to your deployment:'));
+    if (project.platform === 'vercel') {
+      console.log(chalk.cyan('     CNAME  →  cname.vercel-dns.com'));
+    } else if (project.platform === 'netlify') {
+      console.log(chalk.cyan('     CNAME  →  your-site.netlify.app'));
+    } else if (project.platform === 'vps') {
+      console.log(chalk.cyan(`     A      →  (your VPS IP address)`));
+      console.log(chalk.gray('  2. Caddy will auto-provision SSL on next deploy.'));
+    } else {
+      console.log(chalk.gray('     Point your DNS to the tunnel/deployment URL'));
+    }
+    console.log('');
+  });
+
+domainsCmd.command('list')
+  .description('List all custom domains')
+  .option('-p, --project <name>', 'Filter by project name')
+  .action(async (opts) => {
+    const session = requireSession();
+    if (!session) return;
+
+    // Get all projects for this user
+    const { data: projects } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('user_id', session.user_id);
+
+    if (!projects || projects.length === 0) return console.log(chalk.yellow('⚠️  No projects found.'));
+
+    const projectIds = opts.project
+      ? projects.filter((p: any) => p.name.toLowerCase() === opts.project.toLowerCase()).map((p: any) => p.id)
+      : projects.map((p: any) => p.id);
+
+    if (projectIds.length === 0) return console.log(chalk.red(`❌ No project named "${opts.project}".`));
+
+    const { data: domains, error } = await supabase
+      .from('custom_domains')
+      .select('*')
+      .in('project_id', projectIds)
+      .order('created_at', { ascending: false });
+
+    if (error) return console.error(chalk.red('❌ Error:'), error.message);
+    if (!domains || domains.length === 0) {
+      console.log(chalk.yellow('\n⚠️  No custom domains configured.'));
+      console.log(chalk.gray('   Add one with: orbit domains add mydomain.com\n'));
+      return;
+    }
+
+    banner('CUSTOM DOMAINS');
+    console.log('');
+
+    for (const d of domains) {
+      const proj = projects.find((p: any) => p.id === d.project_id);
+      const sslIcon = d.ssl_status === 'active' ? chalk.green('🔒') : d.ssl_status === 'failed' ? chalk.red('🔓') : chalk.yellow('⏳');
+      const verifiedIcon = d.verified ? chalk.green('✔') : chalk.yellow('?');
+
+      console.log(chalk.bold(`  ${d.domain}`) + chalk.gray(`  → ${proj?.name || 'unknown'}`));
+      console.log(chalk.gray(`  ├─ SSL     : ${sslIcon} ${d.ssl_status}`));
+      console.log(chalk.gray(`  ├─ Verified: ${verifiedIcon} ${d.verified ? 'Yes' : 'Pending'}`));
+      console.log(chalk.gray(`  └─ Added   : ${timeAgo(new Date(d.created_at))}`));
+      console.log('');
+    }
+  });
+
+domainsCmd.command('rm <domain>')
+  .description('Remove a custom domain')
+  .action(async (domain: string) => {
+    const session = requireSession();
+    if (!session) return;
+
+    // Verify ownership through project
+    const { data: projects } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('user_id', session.user_id);
+
+    if (!projects || projects.length === 0) return console.log(chalk.yellow('⚠️  No projects found.'));
+
+    const { error } = await supabase
+      .from('custom_domains')
+      .delete()
+      .eq('domain', domain)
+      .in('project_id', projects.map((p: any) => p.id));
+
+    if (error) return console.error(chalk.red('❌ Error:'), error.message);
+
+    console.log(chalk.green(`\n✅ Domain ${domain} removed.\n`));
   });
 
 // ─── DEPLOY ──────────────────────────────────────────────────────────────────

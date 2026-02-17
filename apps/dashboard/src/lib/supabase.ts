@@ -24,3 +24,32 @@ export interface Deployment {
   status: string;
   created_at: string;
 }
+
+export interface EnvVariable {
+  id: string;
+  project_id: string;
+  key: string;
+  value: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiKey {
+  id: string;
+  user_id: string;
+  name: string;
+  key_prefix: string;
+  key_hash: string;
+  last_used_at: string | null;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface CustomDomain {
+  id: string;
+  project_id: string;
+  domain: string;
+  ssl_status: 'pending' | 'active' | 'failed';
+  verified: boolean;
+  created_at: string;
+}

@@ -4,7 +4,7 @@
 
 [![npm](https://img.shields.io/npm/v/@srizdebnath/orbit?style=flat-square&logo=npm&color=blue)](https://www.npmjs.com/package/@srizdebnath/orbit)
 
-**Current Version:** `1.1.4`
+**Current Version:** `1.2.0`
 
 ---
 
@@ -136,6 +136,130 @@ $ orbit rollback
 | Flag | Description |
 |---|---|
 | `-p, --project <name>` | Specify project by name (skip interactive picker) |
+
+### `orbit env`
+
+Manage environment variables per project. Supports set, list, remove, and pull.
+
+```
+$ orbit env set API_KEY=sk-abc123 DB_URL=postgres://localhost/mydb -p my-project
+
+🔐 Setting env vars for my-project...
+
+  ✔ API_KEY = sk-abc123
+  ✔ DB_URL = postgres://localhost/mydb
+
+  2/2 variables set.
+```
+
+**Subcommands:**
+
+| Command | Description |
+|---|---|
+| `orbit env set KEY=VALUE ...` | Set one or more env vars (supports upsert) |
+| `orbit env list` | List all vars (values masked by default) |
+| `orbit env rm KEY ...` | Remove env vars |
+| `orbit env pull` | Download all vars to a local `.env` file |
+
+**Flags:**
+
+| Flag | Description |
+|---|---|
+| `-p, --project <name>` | Specify project by name |
+| `--show-values` | Show actual values when listing (default: masked) |
+| `-o, --output <file>` | Output file for pull (default: `.env`) |
+
+### `orbit logs`
+
+View deployment logs directly from the terminal. Use `-f` to follow live.
+
+```
+$ orbit logs -f -p my-project
+
+─── Deployment #a1b2c3d4 — success — 2/17/2026, 10:00 AM ───
+
+> next build
+  Creating an optimized production build...
+  Compiled successfully.
+  
+📡 Following live logs... (Ctrl+C to stop)
+```
+
+**Flags:**
+
+| Flag | Description |
+|---|---|
+| `-f, --follow` | Follow live log updates via Supabase Realtime |
+| `-n, --lines <count>` | Number of recent deployments to show (default: 1) |
+| `-p, --project <name>` | Specify project by name |
+
+### `orbit token`
+
+Manage API keys for CI/CD pipelines. Keys use SHA-256 hashing and are only shown once.
+
+```
+$ orbit token create -n ci-production --expires 90
+
+ API KEY CREATED 
+
+  ⚠️  Copy this key now — it will NOT be shown again!
+
+  Key:     orb_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4
+  Name:    ci-production
+  Prefix:  orb_a1b2c3d4
+  Expires: 5/18/2026
+
+  Usage in CI/CD:
+    export ORBIT_TOKEN="orb_..."
+    orbit deploy --token $ORBIT_TOKEN
+```
+
+**Subcommands:**
+
+| Command | Description |
+|---|---|
+| `orbit token create` | Generate a new API key |
+| `orbit token list` | List all API keys with status and usage |
+| `orbit token revoke` | Interactively revoke a key |
+
+**Flags:**
+
+| Flag | Description |
+|---|---|
+| `-n, --name <name>` | Key name (default: "default") |
+| `--expires <days>` | Expiry in days, 0 = never (default: 0) |
+
+### `orbit domains`
+
+Manage custom domains with SSL status tracking.
+
+```
+$ orbit domains add app.example.com -p my-project
+
+🌐 Adding app.example.com to my-project...
+
+ DOMAIN ADDED 
+
+  ✔ app.example.com → my-project
+
+  Next Steps:
+  1. Add a DNS record pointing to your deployment:
+     CNAME  →  cname.vercel-dns.com
+```
+
+**Subcommands:**
+
+| Command | Description |
+|---|---|
+| `orbit domains add <domain>` | Add a custom domain to a project |
+| `orbit domains list` | List all custom domains |
+| `orbit domains rm <domain>` | Remove a custom domain |
+
+**Flags:**
+
+| Flag | Description |
+|---|---|
+| `-p, --project <name>` | Specify project by name |
 
 ### `orbit deploy`
 
@@ -311,6 +435,16 @@ ISC
 ---
 
 ## 📝 Changelog
+
+### v1.2.0 (2026-02-17) — Tier 1: Company-Ready
+- **New:** `orbit env set/list/rm/pull` — Full environment variable management per project
+- **New:** `orbit logs -f` — View and follow deployment logs in real-time via Supabase Realtime
+- **New:** `orbit token create/list/revoke` — API key auth for CI/CD pipelines (SHA-256 hashed)
+- **New:** `orbit domains add/list/rm` — Custom domain management with SSL status tracking
+- **Dashboard:** Environment variables panel in project settings
+- **Dashboard:** Custom domains panel in project settings
+- **Dashboard:** API Keys management page (`/keys`)
+- **Dashboard:** Navbar updated with Keys link
 
 ### v1.1.4 (2026-02-17)
 - **New:** `orbit status` — View all projects with deploy count, status, domain, and last deploy time

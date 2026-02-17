@@ -6,7 +6,7 @@ import {
   Rocket, ShieldCheck, Server, Wifi,
   Package, LogIn, LogOut, ChevronRight,
   ArrowRight, MonitorSmartphone, HardDrive, Globe, Lock,
-  Activity, RotateCcw
+  Activity, RotateCcw, Key, ScrollText, FileCode
 } from 'lucide-react';
 
 // ─── Mac Terminal Component ──────────────────────────────────────────────
@@ -184,7 +184,7 @@ export default function Setup() {
                   <CopyButton text="npm install -g @srizdebnath/orbit" />
                 </p>
                 <p className="output mt-2">added 142 packages in 8s</p>
-                <p className="success">✅ orbit@1.1.4 installed globally</p>
+                <p className="success">✅ orbit@1.2.0 installed globally</p>
               </MacTerminal>
             </div>
 
@@ -336,12 +336,111 @@ export default function Setup() {
             />
 
             <CommandCard
+              command="orbit env"
+              description="Manage environment variables per project — set, list, remove, or pull to a local .env file."
+              icon={<FileCode size={20} />}
+              flags={[
+                { flag: 'set KEY=VALUE ...', desc: 'Set one or more env vars' },
+                { flag: 'list', desc: 'List all vars (values masked by default)' },
+                { flag: 'rm KEY ...', desc: 'Remove env vars' },
+                { flag: 'pull', desc: 'Download vars to local .env file' },
+                { flag: '-p, --project <name>', desc: 'Specify project name' },
+                { flag: '--show-values', desc: 'Show values when listing' }
+              ]}
+              example={{
+                input: 'orbit env set API_KEY=sk-abc123 DB_URL=postgres://...',
+                output: [
+                  '🔐 Setting env vars for my-project...',
+                  '',
+                  '  ✔ API_KEY = sk-abc123',
+                  '  ✔ DB_URL = postgres://...',
+                  '',
+                  '  2/2 variables set.'
+                ]
+              }}
+            />
+
+            <CommandCard
+              command="orbit logs"
+              description="View deployment logs — stream live updates in real-time with -f follow mode."
+              icon={<ScrollText size={20} />}
+              flags={[
+                { flag: '-f, --follow', desc: 'Follow live log updates (Ctrl+C to stop)' },
+                { flag: '-n, --lines <count>', desc: 'Number of recent deployments to show' },
+                { flag: '-p, --project <name>', desc: 'Specify project name' }
+              ]}
+              example={{
+                input: 'orbit logs -f -p my-project',
+                output: [
+                  '─── Deployment #a1b2c3d4 — success — 2/17/2026 ───',
+                  '',
+                  '> next build',
+                  '  Creating an optimized production build...',
+                  '  Compiled successfully.',
+                  '',
+                  '📡 Following live logs... (Ctrl+C to stop)'
+                ]
+              }}
+            />
+
+            <CommandCard
+              command="orbit token"
+              description="Manage API keys for CI/CD pipelines — create, list, and revoke machine-to-machine tokens."
+              icon={<Key size={20} />}
+              flags={[
+                { flag: 'create', desc: 'Generate a new API key' },
+                { flag: 'list', desc: 'List all API keys' },
+                { flag: 'revoke', desc: 'Revoke an API key' },
+                { flag: '-n, --name <name>', desc: 'Key name for create' },
+                { flag: '--expires <days>', desc: 'Expiry in days (0 = never)' }
+              ]}
+              example={{
+                input: 'orbit token create -n ci-production',
+                output: [
+                  ' API KEY CREATED ',
+                  '',
+                  '  ⚠️  Copy this key now — it will NOT be shown again!',
+                  '',
+                  '  Key:     orb_a1b2c3d4e5f6...',
+                  '  Name:    ci-production',
+                  '  Expires: Never',
+                  '',
+                  '  Usage: export ORBIT_TOKEN="orb_..."'
+                ]
+              }}
+            />
+
+            <CommandCard
+              command="orbit domains"
+              description="Manage custom domains — add, list, or remove custom domains with SSL status tracking."
+              icon={<Globe size={20} />}
+              flags={[
+                { flag: 'add <domain>', desc: 'Add a custom domain to a project' },
+                { flag: 'list', desc: 'List all custom domains' },
+                { flag: 'rm <domain>', desc: 'Remove a custom domain' },
+                { flag: '-p, --project <name>', desc: 'Specify project name' }
+              ]}
+              example={{
+                input: 'orbit domains add app.example.com -p my-project',
+                output: [
+                  ' DOMAIN ADDED ',
+                  '',
+                  '  ✔ app.example.com → my-project',
+                  '',
+                  '  Next Steps:',
+                  '  1. Add a DNS record:',
+                  '     CNAME  →  cname.vercel-dns.com'
+                ]
+              }}
+            />
+
+            <CommandCard
               command="orbit --version"
               description="Print the currently installed version of the Orbit CLI."
               icon={<Package size={20} />}
               example={{
                 input: 'orbit --version',
-                output: ['1.1.4']
+                output: ['1.2.0']
               }}
             />
 
@@ -365,6 +464,10 @@ export default function Setup() {
                   '  logout              Remove your local Orbit session',
                   '  status [options]    View the status of all your Orbit projects',
                   '  rollback [options]  Rollback a project to a previous deployment',
+                  '  env                 Manage environment variables for your projects',
+                  '  logs [options]      View deployment logs (use -f to follow live)',
+                  '  token               Manage API keys for CI/CD pipelines',
+                  '  domains             Manage custom domains for your projects',
                   '  deploy              Build, deploy, and stream telemetry',
                   '  help [command]      display help for command'
                 ]
